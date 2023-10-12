@@ -107,11 +107,11 @@ bootstrap_summary <- function(bootstrap_list, true_val_NPI1 = -1.45, true_val_NP
     mutate(parameter = factor(parameter, 
                               levels = c("beta_ld1", "beta_BG1"),
                               labels = c("NPI 1", "NPI 2")), 
-           true_value = ifelse(parameter == "NPI 1", true_val_ld1, true_val_NPI2), 
+           true_value = ifelse(parameter == "NPI 1", true_val_NPI1, true_val_NPI2), 
            unique_sims = length(unique(sim_rep)), 
-           CI_covers = ifelse(between(true_value, CI_LL, CI_UL), 1, 0), 
-           bias = abs(true_value - mean_est), 
-           rel_bias = abs(true_value - mean_est)/abs(true_value)*100) %>%
+           CI_covers = ifelse(between(true_value, CI_LL2, CI_UL2), 1, 0), 
+           bias = true_value - mean_est2, 
+           rel_bias = abs(true_value - mean_est2)/abs(true_value)*100) %>%
     group_by(parameter) %>%
     mutate(perc_CI_covers = sum(CI_covers)/unique_sims*100, 
            mean_bias = mean(bias), 
@@ -126,10 +126,10 @@ reg_summary <- function(reg_df, true_val_NPI1 = -1.45, true_val_NPI2 = -0.5){
     mutate(parameter = factor(parameter, 
                               levels = c("Lockdown 1", "Barrier gestures"), 
                               labels = c("NPI 1", "NPI 2")), 
-           true_value = ifelse(parameter == "Lockdown", true_val_NPI1, true_val_NPI2), 
+           true_value = ifelse(parameter == "NPI 1", true_val_NPI1, true_val_NPI2), 
            unique_sims = length(unique(rep)), 
            CI_covers = ifelse(between(true_value, CI_LL, CI_UL), 1, 0), 
-           bias = abs(true_value - value), 
+           bias = true_value - value, 
            rel_bias = abs(true_value - value)/abs(true_value)*100) %>%
     group_by(parameter, model) %>%
     mutate(perc_CI_covers = sum(CI_covers)/unique_sims*100, 
