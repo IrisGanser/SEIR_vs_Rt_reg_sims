@@ -92,17 +92,6 @@ SEIR_boot_df_comp <- bootstrap_summary(SEIR_boot_list_all)
 SEIRAHD_boot_df_comp <- bootstrap_summary(SEIRAHD_boot_list_all) 
 
 
-ggplot(SEIR_boot_df_comp, aes(ymin = CI_LL, ymax = CI_UL, x = sim_rep, y = mean_est)) + 
-  geom_pointrange(position = position_dodge(width = 1)) + 
-  scale_x_continuous(expand = c(0.01, 0.01)) + 
-  facet_wrap(~parameter, ncol = 1, scale = "free_y") +
-  geom_line(aes(y = true_value), linetype = "dashed", col = "darkred", linewidth = 0.8) + 
-  labs(title= "Bootstrap SEIR Simulx new2", 
-       x = "simulation dataset", y = "coefficient value") +
-  theme_bw() +
-  scale_color_brewer(palette = "Dark2")
-
-
 
 # comparison with regressions
 load(paste0(dir, "/reg_res_I_2params_all_Simulx_df.RData"))
@@ -116,7 +105,8 @@ reg_res_2params_Simulx_new2 <- reg_res_I_2params_all_Simulx_df %>%
 
 comp_df_Simulx <- SEIR_boot_df_comp %>%
   mutate(model = "SEIR model") %>%
-  bind_rows(SEIRAHD_boot_df_comp %>% mutate(model = "SEIRAHD model")) %>%
+  bind_rows(SEIRAHD_boot_df_comp %>% mutate(model = "SEIRAHD model")) %>% 
+  rename(mean_est = mean_est2, CI_LL = CI_LL2, CI_UL = CI_UL2) %>%
   bind_rows(reg_res_2params_Simulx_new2 %>% rename(sim_rep = rep, mean_est = value))
 
 
