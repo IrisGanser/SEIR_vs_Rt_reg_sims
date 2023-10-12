@@ -46,7 +46,7 @@ for(j in 1:100){
                                     header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
     mutate(sim_rep = j) %>%
-    rename(mean_est1 = value)
+    rename(mean_est2 = value)
   
   
   SEIR_boot_list_all[[j]] <- pop_params_boot %>%
