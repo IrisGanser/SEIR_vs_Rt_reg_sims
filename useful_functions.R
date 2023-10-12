@@ -90,12 +90,12 @@ bootstrap_cleaning <- function(df, boot_rep = i, sim_rep = j){
 bootstrap_CI_calc <- function(boot_list){
   boot_df <- do.call("rbind.data.frame", boot_list) %>%
     group_by(parameter, sim_rep) %>%
-    summarize(mean_est2 = mean(value), 
+    summarize(mean_est1 = mean(value), 
               sd_est = sd(value), 
               CI_LL2 = quantile(value, probs = 0.025), 
               CI_UL2 = quantile(value, probs = 0.975)) %>%
-    mutate(CI_LL1 = mean_est2 - 1.96*sd_est, 
-           CI_UL1 = mean_est2 + 1.96*sd_est)
+    mutate(CI_LL1 = mean_est1 - 1.96*sd_est, 
+           CI_UL1 = mean_est1 + 1.96*sd_est)
   
   return(boot_df)
 }
