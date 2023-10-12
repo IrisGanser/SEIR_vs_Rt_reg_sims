@@ -126,8 +126,7 @@ load("ABM5_hybrid_list.RData")
 load("ABM5_rm_list.RData")
 
 ABM5_boot_df_comp <- bootstrap_summary(ABM5_rm_list) %>% 
-  mutate(model = "ABM rm 5") %>%
-  bind_rows(bootstrap_summary(ABM5_hybrid_list) %>% mutate(model = "ABM hybrid 5"))
+  bind_rows(bootstrap_summary(ABM5_hybrid_list))
 
 ggplot(ABM5_boot_df_comp, aes(ymin = CI_LL2, ymax = CI_UL2, x = sim_rep, y = mean_est2, col = model)) + 
   geom_pointrange(position = position_dodge(width = 0.5)) + 
@@ -139,3 +138,23 @@ ggplot(ABM5_boot_df_comp, aes(ymin = CI_LL2, ymax = CI_UL2, x = sim_rep, y = mea
   theme_bw() +
   scale_color_brewer(palette = "Dark2")
 
+
+
+# long format to compare CIs
+ABM5_boot_df_comp_long <- ABM5_boot_df_comp %>%
+  select(1:9) %>%
+  pivot_longer(cols = -c(parameter, sim_rep, model), 
+               names_to = c(".value", "method"), 
+               names_pattern = "(.*)(\\d+)") %>%
+  mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5), 
+         method = ifelse(method == 1, "Bootstrap SE", "Empirical bootstrap"))
+
+ggplot(ABM5_boot_df_comp_long, aes(ymin = CI_LL, ymax = CI_UL, x = sim_rep, y = mean_est, col = method)) + 
+  geom_pointrange(position = position_dodge(width = 0.5)) + 
+  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  facet_grid(rows = vars(parameter), cols = vars(model), scales = "free_y") +
+  geom_line(aes(y = true_value), linetype = "dashed", col = "darkred", linewidth = 0.8) + 
+  labs(title= "Bootstrap ABM 5 Comparison CI methods", 
+       x = "simulation dataset", y = "coefficient value") +
+  theme_bw() +
+  scale_color_brewer(palette = "Dark2")
