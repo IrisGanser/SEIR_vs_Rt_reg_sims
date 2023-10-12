@@ -68,13 +68,46 @@ EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, 
 }
 
 
-bootstrap_summary <- function(bootstrap_list, true_val_ld1 = -1.45, true_val_BG1 = -0.5){
+popparam_cleaning <- function(df){
+  df_clean <- df %>%
+    mutate(parameter = str_remove(parameter, "_pop"), 
+           value = 0 - value) %>% # invert the sign of the parameter because it's estimated different in Monolix
+    filter(grepl("beta", parameter) & !grepl("omega", parameter)) 
+  
+  return(df_clean)
+}
+
+bootstrap_cleaning <- function(df, boot_rep = i, sim_rep = j){
+  df_clean <- df %>%
+    mutate(parameter = str_remove(parameter, "_pop"), 
+          value = 0 - value) %>% # invert the sign of the parameter because it's estimated different in Monolix
+    filter(grepl("beta", parameter) & !grepl("omega", parameter)) %>%
+    mutate(boot_rep = boot_rep, sim_rep = sim_rep)
+  
+  return(df_clean)
+}
+
+bootstrap_CI_calc <- function(boot_list){
+  boot_df <- do.call("rbind.data.frame", boot_list) %>%
+    group_by(parameter, sim_rep) %>%
+    summarize(mean_est2 = mean(value), 
+              sd_est = sd(value), 
+              CI_LL2 = quantile(value, probs = 0.025), 
+              CI_UL2 = quantile(value, probs = 0.975)) %>%
+    mutate(CI_LL1 = mean_est2 - 1.96*sd_est, 
+           CI_UL1 = mean_est2 + 1.96*sd_est)
+  
+  return(boot_df)
+}
+
+
+bootstrap_summary <- function(bootstrap_list, true_val_NPI1 = -1.45, true_val_NPI2 = -0.5){
   boot_df <- do.call("rbind.data.frame", bootstrap_list) %>%
     ungroup() %>% 
     mutate(parameter = factor(parameter, 
                               levels = c("beta_ld1", "beta_BG1"),
-                              labels = c("Lockdown", "Barrier gestures")), 
-           true_value = ifelse(parameter == "Lockdown", true_val_ld1, true_val_BG1), 
+                              labels = c("NPI 1", "NPI 2")), 
+           true_value = ifelse(parameter == "NPI 1", true_val_ld1, true_val_NPI2), 
            unique_sims = length(unique(sim_rep)), 
            CI_covers = ifelse(between(true_value, CI_LL, CI_UL), 1, 0), 
            bias = abs(true_value - mean_est), 
@@ -88,12 +121,12 @@ bootstrap_summary <- function(bootstrap_list, true_val_ld1 = -1.45, true_val_BG1
 }
 
 
-reg_summary <- function(reg_df, true_val_ld1 = -1.45, true_val_BG1 = -0.5){
+reg_summary <- function(reg_df, true_val_NPI1 = -1.45, true_val_NPI2 = -0.5){
   reg_df %<>% 
     mutate(parameter = factor(parameter, 
                               levels = c("Lockdown 1", "Barrier gestures"), 
-                              labels = c("Lockdown", "Barrier gestures")), 
-           true_value = ifelse(parameter == "Lockdown", true_val_ld1, true_val_BG1), 
+                              labels = c("NPI 1", "NPI 2")), 
+           true_value = ifelse(parameter == "Lockdown", true_val_NPI1, true_val_NPI2), 
            unique_sims = length(unique(rep)), 
            CI_covers = ifelse(between(true_value, CI_LL, CI_UL), 1, 0), 
            bias = abs(true_value - value), 
