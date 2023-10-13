@@ -1,5 +1,4 @@
 library(tidyverse)
-library(deSolve)
 library(lme4)
 library(EpiEstim)
 library(colorspace)
@@ -17,6 +16,12 @@ source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once"
 dir4 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once2"
+
+
+popsize_df <- read.csv(paste0(dir2, "/popsize_df.csv")) %>%
+  mutate(dept_id = ifelse(dept_id < 20, dept_id, dept_id - 1))
+
+load("ind_param_list.RData")
 
 
 # EpiEstim bootstrap
@@ -47,10 +52,11 @@ seeds <- seq(101, 200)
 
 for(j in 1:100){
   
+  # resample individual departments from datasets
   set.seed(seeds[j])
   random_depts <- sample(1:94, 94, replace = TRUE)
   
-  
+  # Rt estimation
   Rt_list <- foreach(i = 1:94, .packages = c("tidyverse", "EpiEstim")) %dopar% {
     Inc_series <- data_for_est %>% 
       filter(dept_id == random_depts[i]) 
@@ -60,8 +66,8 @@ for(j in 1:100){
     Rt_estim <- estimate_R(Inc,
                            method = "parametric_si",
                            config = make_config(list(
-                             mean_si = 5.1,
-                             std_si = 5.2)))$R
+                             mean_si = 10.1,
+                             std_si = 8.75)))$R
     Rt_estim <- Rt_estim %>%
       mutate(t = (t_end+t_start)/2,
              id = i, .before = t_start) %>%
@@ -72,6 +78,7 @@ for(j in 1:100){
   Rt_df <- do.call("rbind.data.frame", Rt_list) %>%
     rename(dept_id = id, day = t)
   
+  # assemble dataset for regression
   reg_data <- data_for_est %>%
     dplyr::select(dept_id, day, lockdown1, BG1) %>%
     unique() %>%
@@ -80,6 +87,7 @@ for(j in 1:100){
     reg_res <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data)
 
   
+  # get reg coefficients
   coefs_Rt_reg <- coefficients(reg_res)$dept_id
   
   confint_Rt_reg <- data.frame(confint(reg_res, method="Wald"))[-c(1:2), ]
@@ -110,6 +118,7 @@ boot_EpiEstim_res <- boot_EpiEstim_df %>%
             value = mean(value))
 
 
+### comparison: unbootstrapped run
 cl <- makeCluster(8)
 registerDoParallel(cl)
 
