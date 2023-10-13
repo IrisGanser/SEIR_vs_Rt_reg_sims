@@ -26,7 +26,7 @@ for(j in 1:100){
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 7.68, stdsi = 4.17)
+                                meansi = 7.41, stdsi = 3.96)
   
   
   reg_res_list_I_2params_all_ABM_rm5[[j]] <- res_all_I
@@ -45,7 +45,7 @@ for(j in 1:100){
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 7.68, stdsi = 4.17)
+                                meansi = 7.31, stdsi = 3.81)
   
   
   reg_res_list_I_2params_all_ABM_hybrid5[[j]] <- res_all_I
@@ -73,7 +73,7 @@ for(j in 1:100){
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 7.155, stdsi = 3.877)
+                                meansi = 7.5, stdsi = 4.3)
   
   
   reg_res_list_I_2params_all_ABM_rm6[[j]] <- res_all_I
@@ -92,7 +92,7 @@ for(j in 1:100){
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 7.155, stdsi = 3.877)
+                                meansi = 7.08, stdsi = 3.73)
   
   
   reg_res_list_I_2params_all_ABM_hybrid6[[j]] <- res_all_I
