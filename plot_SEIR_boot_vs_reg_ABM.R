@@ -4,7 +4,7 @@ library(magrittr)
 library(kableExtra)
 
 
-source("~/PhD/COVID_France/Dropbox_iris_covid/departement/Données_SPF/Data/data_functions.R")
+# source("~/PhD/COVID_France/Dropbox_iris_covid/departement/Données_SPF/Data/data_functions.R")
 source("~/PhD/COVID_France/SEIR_vs_Rt_sims/useful_functions.R")
 
 
@@ -12,7 +12,6 @@ setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
 
 dir <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/sim_2params_regs"
 dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_ABM5"
-# dir4 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_ABM"
 
 
 # load data
@@ -29,10 +28,7 @@ boot_df_ABM <- bootstrap_summary(ABM5_rm_list) %>%
   mutate(model = "SEIR ABM rm") %>%
   bind_rows(bootstrap_summary(ABM5_hybrid_list) %>%
               mutate(model = "SEIR ABM hybrid")) %>%
-  group_by(model, parameter) %>%
-  mutate(unique_sims = n(), 
-         sum_CI = sum(CI_covers),
-         perc_CI_covers = sum(CI_covers)/unique_sims*100)
+  rename(mean_est = mean_est2, CI_LL = CI_LL2, CI_UL = CI_UL2)
 
 
 reg_res_2params_ABM <- reg_res_I_2params_all_ABM_hybrid5_df %>%
@@ -41,9 +37,7 @@ reg_res_2params_ABM <- reg_res_I_2params_all_ABM_hybrid5_df %>%
   reg_summary()
 
 comp_df_ABM <- boot_df_ABM %>%
-  bind_rows(reg_res_2params_ABM %>% rename(sim_rep = rep, mean_est = value)) %>%
-  mutate(parameter = ifelse(parameter == "Lockdown", "NPI 1", "NPI 2"))
-
+  bind_rows(reg_res_2params_ABM %>% rename(sim_rep = rep, mean_est = value))
 
 # plot
 pg_palette <- diverging_hcl("Purple-Green", n = 20)

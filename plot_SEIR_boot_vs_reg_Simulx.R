@@ -4,7 +4,6 @@ library(magrittr)
 library(kableExtra)
 
 
-source("~/PhD/COVID_France/Dropbox_iris_covid/departement/Données_SPF/Data/data_functions.R")
 source("~/PhD/COVID_France/SEIR_vs_Rt_sims/useful_functions.R")
 
 
@@ -35,8 +34,8 @@ reg_res_2params_Simulx_new2 <- reg_res_I_2params_all_Simulx_df %>%
 comp_df_Simulx <- SEIR_boot_df_comp %>%
   mutate(model = "SEIR model") %>%
   bind_rows(SEIRAHD_boot_df_comp %>% mutate(model = "SEIRAHD model")) %>%
-  bind_rows(reg_res_2params_Simulx_new2 %>% rename(sim_rep = rep, mean_est = value)) %>%
-  mutate(parameter = ifelse(parameter == "Lockdown", "NPI 1", "NPI 2"))
+  rename(mean_est = mean_est2, CI_LL = CI_LL2, CI_UL = CI_UL2) %>%
+  bind_rows(reg_res_2params_Simulx_new2 %>% rename(sim_rep = rep, mean_est = value)) 
 
 
 # plot
