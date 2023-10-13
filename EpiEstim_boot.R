@@ -14,8 +14,6 @@ source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.
 
 
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
-dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once"
-dir4 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once2"
 
 
 popsize_df <- read.csv(paste0(dir2, "/popsize_df.csv")) %>%
