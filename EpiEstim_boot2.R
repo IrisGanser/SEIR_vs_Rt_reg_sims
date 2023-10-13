@@ -52,6 +52,7 @@ for(j in 1:100){
       rename(Rt = `Mean(R)`, CI_LL = `Quantile.0.025(R)`, CI_UL = `Quantile.0.975(R)`)
   }
   
+  
   Rt_list_H <- foreach(i = 1:94, .packages = c("tidyverse", "EpiEstim")) %dopar% {
     Inc_series <- reg_data_all %>% 
       filter(dept_id == random_depts[i]) 
@@ -73,42 +74,30 @@ for(j in 1:100){
   
   Rt_df <- do.call("rbind.data.frame", Rt_list) %>%
     rename(dept_id = id, day = t) %>%
-    mutate(se = (Rt - CI_LL)/1.96) 
+    mutate(se = (Rt - CI_LL)/1.96)  %>%
+    mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+           BG1 = ifelse(day > 70, 1, 0))
   
   Rt_df_H <- do.call("rbind.data.frame", Rt_list_H) %>%
     rename(dept_id = id, day = t) %>%
-    mutate(se = (Rt - CI_LL)/1.96)
+    mutate(se = (Rt - CI_LL)/1.96) %>%
+    mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+           BG1 = ifelse(day > 70, 1, 0))
   
   
   # include uncertainty in Rt estimation by repeatedly sampling from its distribution
-  reg_boot <- list()
-  reg_boot_H <- list()
-  
-  for(k in 1:500){
-    
+  reg_boot <- foreach(k = 1:500, .packages = c("tidyverse", "lme4")) %dopar% {
     # randomly sample one value for Rt from its distribution
     set.seed(seeds[k])
     Rt_df %<>% 
       filter(!is.na(Rt)) %>%
       rowwise() %>%
       mutate(Rt_sampled = rnorm(1, mean = Rt, sd = se)) %>%
-      ungroup() %>%
-      mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
-             BG1 = ifelse(day > 70, 1, 0))
-    
-    set.seed(seeds[k])
-    Rt_df_H %<>% 
-      filter(!is.na(Rt)) %>%
-      rowwise() %>%
-      mutate(Rt_sampled = rnorm(1, mean = Rt, sd = se)) %>%
-      ungroup() %>%
-      mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
-             BG1 = ifelse(day > 70, 1, 0))
-    
+      ungroup()
     
     # regression
     reg_res <- lmer(log(Rt_sampled) ~ lockdown1 + BG1 + (1|dept_id), data = Rt_df)
-    reg_res_H <- lmer(log(Rt_sampled) ~ lockdown1 + BG1 + (1|dept_id), data = Rt_df_H)
+    
     
     # get reg coefficients
     coefs_Rt_reg <- coefficients(reg_res)$dept_id %>%
@@ -117,17 +106,28 @@ for(j in 1:100){
       pivot_longer(cols = everything(), names_to = "parameter", values_to = "value") %>%
       mutate(boot_rep = k)
     
+  }
+  
+  reg_boot_H <- foreach(k = 1:500, .packages = c("tidyverse", "lme4")) %dopar% {
+    # randomly sample one value for Rt from its distribution
+    set.seed(seeds[k])
+    Rt_df_H %<>% 
+      filter(!is.na(Rt)) %>%
+      rowwise() %>%
+      mutate(Rt_sampled = rnorm(1, mean = Rt, sd = se)) %>%
+      ungroup()
+    
+    # regression
+    reg_res_H <- lmer(log(Rt_sampled) ~ lockdown1 + BG1 + (1|dept_id), data = Rt_df_H)
+    
+    # get reg coefficients
     coefs_Rt_reg_H <- coefficients(reg_res_H)$dept_id %>%
       dplyr::select(-1) %>%
       unique() %>%
       pivot_longer(cols = everything(), names_to = "parameter", values_to = "value") %>%
       mutate(boot_rep = k)
-
-    reg_boot[[k]] <- coefs_Rt_reg
-    reg_boot_H[[k]] <- coefs_Rt_reg_H
   }
-  
-  
+
   # point estimate regression (Rt without sampling)
   reg_point_est <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = Rt_df)
   reg_point_est_H <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = Rt_df_H)
@@ -162,3 +162,12 @@ for(j in 1:100){
   reg_res_list_I_Simulx_boot[[j]] <- reg_boot_df
   reg_res_list_H_Simulx_boot[[j]] <- reg_boot_df_H
 }
+
+stopCluster(cl)
+
+boot_Simulx_I_df <- do.call("rbind.data.frame", reg_res_list_I_Simulx_boot)
+boot_Simulx_H_df <- do.call("rbind.data.frame", reg_res_list_H_Simulx_boot)
+
+
+save(boot_Simulx_I_df, file = "boot_Simulx_I_df.RData")
+save(boot_Simulx_H_df, file = "boot_Simulx_H_df.RData")
