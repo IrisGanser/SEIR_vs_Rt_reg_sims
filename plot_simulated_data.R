@@ -5,7 +5,7 @@ library(kableExtra)
 library(patchwork)
 
 
-source("~/PhD/COVID_France/SEIR_vs_Rt_sims/useful_functions.R")
+source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.R")
 
 
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
