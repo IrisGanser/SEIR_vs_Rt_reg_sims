@@ -5,7 +5,7 @@ library(kableExtra)
 
 
 # source("~/PhD/COVID_France/Dropbox_iris_covid/departement/Données_SPF/Data/data_functions.R")
-source("~/PhD/COVID_France/SEIR_vs_Rt_sims/useful_functions.R")
+source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.R")
 
 
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
@@ -82,7 +82,7 @@ metric_df_ABM <- comp_df_ABM %>%
 metric_df_ABM  %>% 
   ungroup() %>%
   select(-parameter) %>%
-  kable(digits = 2, format = "html", table.attr = "style='width:45%;'") %>%
+  kable(digits = 2, format = "html", table.attr = "style='width:63%;'") %>%
   kable_styling(bootstrap_options = "striped") %>%
   pack_rows("NPI 1", 1, 3) %>%
   pack_rows("NPI 2", 4, 6)
@@ -156,7 +156,7 @@ metric_df_ABM6 <- comp_df_ABM6 %>%
 metric_df_ABM6  %>% 
   ungroup() %>%
   select(-parameter) %>%
-  kable(digits = 2, format = "html", table.attr = "style='width:45%;'") %>%
+  kable(digits = 2, format = "html", table.attr = "style='width:62%;'") %>%
   kable_styling(bootstrap_options = "striped") %>%
   pack_rows("NPI 1", 1, 3) %>%
   pack_rows("NPI 2", 4, 6)
