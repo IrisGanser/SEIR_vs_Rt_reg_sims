@@ -99,7 +99,7 @@ for(j in 1:100){
     cbind(confint_Rt_reg[-1,]) %>%
     mutate(parameter = factor(parameter,
                               levels = c("lockdown1", "BG1"),
-                              labels = c("Lockdown 1", "Barrier gestures"))) %>%
+                              labels = c("NPI 1", "NPI 2"))) %>%
     mutate(rep = j)
   
   boot_EpiEstim[[j]] <- coefs_Rt_reg
@@ -122,14 +122,17 @@ registerDoParallel(cl)
 
 normal_reg_Simulx_I <- EpiEstim_reg_fun(data_for_est = dataset1_Simulx, 
                                      Inc_name = "IncI_unscaled", 
-                                     rep_num = 1)
+                                     rep_num = 1, meansi = 10.1, stdsi = 8.75) %>%
+  mutate(parameter = factor(parameter, 
+                            levels = c("Lockdown 1", "Barrier gestures"),
+                             labels = c("NPI 1", "NPI 2")))
 stopCluster(cl)
 
 
 # compare both methods
 boot_comp_df <- bind_rows(boot_EpiEstim_res %>% mutate(method = "bootstrap"), 
                           normal_reg_Simulx_I %>% mutate(method = "SE from reg only")) %>%
-  mutate(true_value = factor(ifelse(parameter == "Lockdown 1", -1.45, -0.5)))
+  mutate(true_value = factor(ifelse(parameter == "NPI 1", -1.45, -0.5)))
 
 ggplot(boot_comp_df, aes(x = parameter, y = value, ymin = CI_LL, ymax = CI_UL, col = method)) + 
   geom_pointrange(position = position_dodge(width = 1)) + 
