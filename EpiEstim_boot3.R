@@ -5,6 +5,7 @@ library(colorspace)
 library(parallel)
 library(foreach)
 library(doParallel)
+library(magrittr)
 
 
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/sim_2params_regs")
@@ -14,12 +15,9 @@ source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 
 
-reg_res_list_I_Simulx_boot <- vector(mode = "list")
-reg_res_list_H_Simulx_boot <- vector(mode = "list")
-
 seeds <- seq(101, 600)
 
-cl <- makeCluster(10)
+cl <- makeCluster(12)
 registerDoParallel(cl)
 
 # initialize final result lists
@@ -191,8 +189,59 @@ for(i in 1:100){ # i is the simulation dataset
   boot_res_3_levels_H[[i]] <- boot_Simulx_H_df
 }
 
+
+stopCluster(cl)
+
+
 df_boot_res_3_levels <- do.call("rbind.data.frame", boot_res_3_levels)
 df_boot_res_3_levels_H <- do.call("rbind.data.frame", boot_res_3_levels_H)
 
-save(df_boot_res_3_levels, file = "df_boot_res_3_levels.RData")
-save(df_boot_res_3_levels_H, file = "df_boot_res_3_levels_H.RData")
+save(df_boot_res_3_levels, file = "df_boot_res_3_levels_81.RData")
+save(df_boot_res_3_levels_H, file = "df_boot_res_3_levels_H_81.RData")
+
+
+
+## comparison with simple 2 step reg
+load("reg_res_I_2params_all_Simulx_df.RData")
+reg_res_I_2params_all_Simulx_df %<>%
+  mutate(CI_method = "regression only", obs = "inf") %>%
+  rename(sim_rep = rep)
+
+load("reg_res_H_2params_all_Simulx_df.RData")
+reg_res_H_2params_all_Simulx_df %<>%
+  mutate(CI_method = "regression only", obs = "hosp") %>%
+  rename(sim_rep = rep)
+
+df_boot_res_3_levels_summary <- df_boot_res_3_levels %>%
+  group_by(parameter, sim_rep) %>%
+  summarize(value = mean(value), 
+            CI_LL1 = mean(CI_LL), 
+            CI_UL1 = mean(CI_UL), 
+            CI_LL = quantile(CI_LL, probs = 0.025), 
+            CI_UL = quantile(CI_UL, probs = 0.975)) %>%
+  mutate(CI_method = "bootstrap", obs = "inf", 
+         parameter = ifelse(parameter == "lockdown1", "Lockdown 1", "Barrier gestures"))
+
+
+df_boot_res_3_levels_summary_H <- df_boot_res_3_levels_H %>%
+  group_by(parameter, sim_rep) %>%
+  summarize(value = mean(value), 
+            CI_LL1 = mean(CI_LL), 
+            CI_UL1 = mean(CI_UL), 
+            CI_LL = quantile(CI_LL, probs = 0.025), 
+            CI_UL = quantile(CI_UL, probs = 0.975)) %>%
+  mutate(CI_method = "bootstrap", obs = "hosp", 
+         parameter = ifelse(parameter == "lockdown1", "Lockdown 1", "Barrier gestures"))
+
+
+comp_reg_df <- bind_rows(reg_res_I_2params_all_Simulx_df, reg_res_H_2params_all_Simulx_df) %>%
+  bind_rows(df_boot_res_3_levels_summary) %>%
+  bind_rows(df_boot_res_3_levels_summary_H) %>%
+  mutate(true_value = ifelse(parameter == "Lockdown 1", -1.45, -0.5))
+
+
+ggplot(comp_reg_df, aes(x = sim_rep, y = value, ymin = CI_LL, ymax = CI_UL, col = CI_method)) + 
+  geom_pointrange(position = position_dodge(width = 0.3)) + 
+  facet_grid(cols = vars(obs), rows = vars(parameter), scales = "free_y") +
+  geom_line(aes(x = sim_rep, y = true_value), linetype = "dashed", col = "black") + 
+  scale_color_brewer(palette = "Dark2")
