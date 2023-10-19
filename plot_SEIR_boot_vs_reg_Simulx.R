@@ -12,8 +12,8 @@ setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
 dir <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/sim_2params_regs"
 dir1 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_all_new2_Simulx_SEIR"
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_all_new2_Simulx_SEIRAHD"
-dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_all_new3_Simulx_SEIR"
-dir4 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_all_new4_Simulx_SEIRAHD"
+dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_new3_Simulx_SEIR"
+dir4 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_new3_Simulx_SEIRAHD"
 
 
 
@@ -99,13 +99,13 @@ load(paste0(dir, "/reg_res_H_2params_all_Simulx_df3.RData"))
 
 
 # bring data into right format and assemble
-SEIR_boot_df_comp3 <- bootstrap_summary(SEIR_boot_list_all3) 
-SEIRAHD_boot_df_com3 <- bootstrap_summary(SEIRAHD_boot_list_all3) 
+SEIR_boot_df_comp3 <- bootstrap_summary(SEIR_boot_list_all3, true_val_NPI2 = -0.8) 
+SEIRAHD_boot_df_comp3 <- bootstrap_summary(SEIRAHD_boot_list_all3, true_val_NPI2 = -0.8) 
 
 reg_res_2params_Simulx_new3 <- reg_res_I_2params_all_Simulx_df3 %>%
   mutate(model = "Regression model IncI") %>%
   bind_rows(reg_res_H_2params_all_Simulx_df3 %>% mutate(model = "Regression model IncH")) %>%
-  reg_summary()
+  reg_summary(true_val_NPI2 = -0.8)
 
 
 comp_df_Simulx3 <- SEIR_boot_df_comp3 %>%
