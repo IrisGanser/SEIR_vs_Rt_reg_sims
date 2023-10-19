@@ -34,6 +34,7 @@ registerDoParallel(cl)
 
 res_EE_slow_NPI_list <- list()
 res_reg_slow_NPI_list <- list()
+fits_reg_slow_NPI_list <- list()
 
 for(j in 1:4){
   
@@ -66,13 +67,36 @@ for(j in 1:4){
   res_EE_slow_NPI_list[[j]] <- res_EE
   
   # regression
-  res_reg <- EpiEstim_reg_fun(data_for_est = data_x, 
-                              Inc_name = "IncI_unscaled", 
-                              rep_num = 1, 
-                              meansi = 10.1, stdsi = 8.75) %>%
-    mutate(model = sim_res_slow_names[j]) 
+  reg_res <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = res_EE)
   
-  res_reg_slow_NPI_list[[j]] <- res_reg
+  # coefficients
+  coefs_Rt_reg <- coefficients(reg_res)$dept_id
+  
+  confint_Rt_reg <- data.frame(confint(reg_res, method="Wald"))[-c(1:2), ]
+  names(confint_Rt_reg) <- c("CI_LL", "CI_UL")
+  
+  
+  coefs_Rt_reg <- coefs_Rt_reg %>%
+    dplyr::select(-1) %>%
+    unique() %>%
+    pivot_longer(cols = everything(), names_to = "parameter", values_to = "value") %>%
+    cbind(confint_Rt_reg[-1,]) %>%
+    mutate(parameter = factor(parameter,
+                              levels = c("lockdown1", "BG1"),
+                              labels = c("Lockdown 1", "Barrier gestures")), 
+           model = sim_res_slow_names[j])
+  
+  res_reg_slow_NPI_list[[j]] <- coefs_Rt_reg
+  
+  
+  # regression fits
+  fitted_vals <- exp(fitted(reg_res))
+  fitted_df <- res_EE %>%
+    filter(!is.na(Rt)) %>%
+    mutate(Rt_fitted = fitted_vals) %>%
+    select(dept_id, day, Rt_SEIRAHD, Rt, CI_LL, CI_UL, Rt_fitted, model, lockdown1, BG1)
+  
+  fits_reg_slow_NPI_list[[j]] <- fitted_df
 }
 
 stopCluster(cl)
@@ -111,3 +135,25 @@ ggplot(res_reg_slow_NPI_df, aes(ymin = CI_LL, ymax = CI_UL, x = model,
        x = "", y = "coefficient value") +
   theme_bw() +
   scale_color_brewer(palette = "Dark2")
+
+
+# regression fits
+fits_reg_slow_NPI_df <- do.call("rbind.data.frame", fits_reg_slow_NPI_list)
+
+ggplot(fits_reg_slow_NPI_df %>% filter(dept_id %in% c(1, 4, 9, 13)),
+       aes(x = day, y = Rt, col = model)) + 
+  geom_line(aes(linetype = "EpiEstim Rt")) +
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = model), alpha = 0.5) +
+  geom_line(aes(y = Rt_SEIRAHD, linetype = "True Rt")) + 
+  geom_line(aes(y = Rt_fitted, linetype = "Regression fit Rt")) + 
+  facet_wrap(~dept_id) + 
+  scale_x_continuous(breaks = seq(0, 120, 20)) + 
+  scale_linetype_manual(values = c("True Rt" = "dashed", 
+                                   "EpiEstim Rt" = "solid", 
+                                   "Regression fit Rt" = "dotted")) + 
+  labs(title = "Comparison Rt estimated by EpiEstim and real underlying Rt", 
+       col = "", fill = "", linetype = "") +
+  theme_bw() +
+  scale_color_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") + 
+  theme(legend.position = "bottom")
