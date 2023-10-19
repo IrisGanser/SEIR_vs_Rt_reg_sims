@@ -65,6 +65,10 @@ write.csv(ld1_reg_2week_slow, "ld1_reg_2week_slow.csv", row.names = F)
 write.csv(ld1_reg_1week_slow_late, "ld1_reg_1week_slow_late.csv", row.names = F) 
 write.csv(ld1_reg_2week_slow_late, "ld1_reg_2week_slow_late.csv", row.names = F) 
 
+list_reg_files_slow_NPI <- list(ld1_reg_1week_slow, ld1_reg_2week_slow, 
+                                ld1_reg_1week_slow_late, ld1_reg_2week_slow_late)
+
+
 
 #### Simulx data simulation ####
 project.file <- paste(dir1, "sim_SEIRAHD_2params_init_est.mlxtran", sep = "/")
@@ -89,8 +93,25 @@ sim_res_slow_NPI <- list(sim_res_1week_slow, sim_res_2week_slow,
 sim_res_slow_names <- c("1week_slow", "2week_slow", "1week_slow_late", "2week_slow_late")
   
 for(j in 1:4){
-  monolix_SEIRAHD <- monolix_data_creation_ME(simulation_results = sim_res_slow_NPI[[j]],
-                                              popsize_df = popsize_df)
+  monolix_SEIRAHD <- sim_res_slow_NPI[[j]] %>%
+    left_join(list_reg_files_slow_NPI[[j]] %>% select(id, time, lockdown1, BG1), 
+              by = c("id", "time")) %>%
+    rename(dept_id = id, day = time) %>%
+    left_join(popsize_df, by = "dept_id") %>%
+    group_by(dept_id) %>%
+    mutate(initH = PrevH_ME[day == 1]) %>%
+    ungroup() %>%
+    select(dept_id, day, IncI_ME, IncH_ME, PrevH_ME, IncD_ME, initH, lockdown1, BG1) %>%
+    pivot_longer(c(IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+                 names_to = "obs_id", values_to = "obs") %>%
+    mutate(obs_id = case_when(obs_id == "IncH_ME" ~ 1, 
+                              obs_id == "PrevH_ME" ~ 2,
+                              obs_id == "IncI_ME" ~ 3, 
+                              obs_id == "IncD_ME" ~ 4)) %>%
+    relocate(obs, .after = day) %>%
+    relocate(obs_id, .after = obs) %>%
+    mutate(obs = ifelse(obs < 0, 0, obs))
+  
   
   write.table(monolix_SEIRAHD, file = paste0("data_sim_SEIRAHD_2params_", sim_res_slow_names[j], ".txt"), 
               row.names = FALSE, sep = ",")
