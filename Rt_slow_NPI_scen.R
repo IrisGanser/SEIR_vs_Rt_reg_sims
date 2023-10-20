@@ -134,7 +134,9 @@ ggplot(res_reg_slow_NPI_df, aes(ymin = CI_LL, ymax = CI_UL, x = model,
   labs(title = "Comparison 2 step regression: slower NPI onset", col = "",
        x = "", y = "coefficient value") +
   theme_bw() +
-  scale_color_brewer(palette = "Dark2")
+  scale_color_brewer(palette = "Dark2") + 
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank())
 
 
 # regression fits
@@ -142,16 +144,16 @@ fits_reg_slow_NPI_df <- do.call("rbind.data.frame", fits_reg_slow_NPI_list)
 
 ggplot(fits_reg_slow_NPI_df %>% filter(dept_id %in% c(1, 4, 9, 13)),
        aes(x = day, y = Rt, col = model)) + 
-  geom_line(aes(linetype = "EpiEstim Rt")) +
-  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = model), alpha = 0.5) +
-  geom_line(aes(y = Rt_SEIRAHD, linetype = "True Rt")) + 
-  geom_line(aes(y = Rt_fitted, linetype = "Regression fit Rt")) + 
+  geom_line(aes(linetype = "EpiEstim Rt"), linewidth = 0.7) +
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = model), alpha = 0.4) +
+  geom_line(aes(y = Rt_SEIRAHD, linetype = "True Rt"), linewidth = 0.7) + 
+  geom_line(aes(y = Rt_fitted, linetype = "Regression fit Rt"), linewidth = 0.7) + 
   facet_wrap(~dept_id) + 
   scale_x_continuous(breaks = seq(0, 120, 20)) + 
   scale_linetype_manual(values = c("True Rt" = "dashed", 
                                    "EpiEstim Rt" = "solid", 
                                    "Regression fit Rt" = "dotted")) + 
-  labs(title = "Comparison Rt estimated by EpiEstim and real underlying Rt", 
+  labs(title = expression(R[t] ~ "estimated by EpiEstim and real underlying" ~ R[t]), 
        col = "", fill = "", linetype = "") +
   theme_bw() +
   scale_color_brewer(palette = "Dark2") +
