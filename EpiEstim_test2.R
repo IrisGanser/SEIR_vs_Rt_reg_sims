@@ -128,6 +128,71 @@ Rt_calc_fun <- function(Inc_df, id_col_name, time_col_name, Inc_col_name, model_
 }
 
 
+Rt_calc_ad_fun <- function(Inc_df, id_col_name, time_col_name, Inc_col_name, model_name, 
+                        tstart = NULL, tend = NULL, Rt_ref_df, 
+                        Rt_prior = 2, Rt_sd_prior = 3, meansi = 10.1, stdsi = 8.75, 
+                        day_assigned){
+  # select input data according to desired input for Rt calculation
+  Inc_data <- Inc_df[c(id_col_name, time_col_name, Inc_col_name)]
+  colnames(Inc_data) <- c("id", "time", "Inc")
+  
+  # Rt calculation
+  Rt_list <- vector(mode = "list")
+  
+  if(is_null(tstart) | (is_null(tend))){
+    Rt_list <- foreach(i = 1:94, .packages = c("EpiEstim", "tidyverse")) %dopar% {
+      Rt_estim_I <- estimate_R(Inc_data$Inc[Inc_data$id == unique(Inc_data$id)[i]],
+                               method = "parametric_si",
+                               config = make_config(list(mean_si = meansi, 
+                                                         std_si = stdsi, 
+                                                         mean_prior = Rt_prior, 
+                                                         std_prior = Rt_sd_prior)))$R
+      Rt_estim_I <- Rt_estim_I %>%
+        mutate(t = t_start + day_assigned,
+               id = unique(Inc_data$id)[i], .before = t_start) %>%
+        select(t, t_start, t_end, id, `Mean(R)`, `Quantile.0.025(R)`, `Quantile.0.975(R)`) %>%
+        rename(Rt = `Mean(R)`, CI_LL = `Quantile.0.025(R)`, CI_UL = `Quantile.0.975(R)`)
+    } 
+  } 
+  
+  if(!is_null(tstart) & !(is_null(tend))){
+    Rt_list <- foreach(i = 1:94, .packages = c("EpiEstim", "tidyverse")) %dopar% {
+      Rt_estim_I <- estimate_R(Inc_data$Inc[Inc_data$id == unique(Inc_data$id)[i]],
+                               method = "parametric_si",
+                               config = make_config(list(
+                                 mean_si = meansi, std_si = stdsi, 
+                                 t_start = tstart, t_end = tend, 
+                                 mean_prior = Rt_prior, 
+                                 std_prior = Rt_sd_prior)))$R
+      Rt_estim_I <- Rt_estim_I %>%
+        mutate(t = t_start + day_assigned,
+               id = unique(Inc_data$id)[i], .before = t_start) %>%
+        select(t, t_start, t_end, id, `Mean(R)`, `Quantile.0.025(R)`, `Quantile.0.975(R)`) %>%
+        rename(Rt = `Mean(R)`, CI_LL = `Quantile.0.025(R)`, CI_UL = `Quantile.0.975(R)`)
+    } 
+  }
+  
+  Rt_df <- do.call("rbind.data.frame", Rt_list) %>%
+    rename(dept_id = id, day = t)
+  
+  Rt_comp_df <- Rt_df %>%
+    left_join(., Rt_ref_df, by = c("dept_id", "day")) %>%
+    mutate(Rt_residual = Rt - Rt_real, 
+           model = model_name)
+  
+  RMSE_df <- Rt_comp_df %>%
+    filter(!is.na(Rt)) %>%
+    group_by(dept_id, model) %>%
+    summarize(RMSE = sqrt(sum(Rt_residual^2)/n())) %>%
+    ungroup() %>%
+    mutate(RMSE_total = mean(RMSE))
+  
+  return(list(Rt_comp = Rt_comp_df, RMSE = RMSE_df))
+  
+}
+
+
+
 Rt_reg_only_fun <- function(data_for_est, lag_NPIs = FALSE, lag_days = 0, model_name, 
                             fits = FALSE){
   
@@ -201,7 +266,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI_unscaled", model_name = interval[i], 
                              Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[i]], tend = new_tend[[i]], 
-                             meansi = 10.1, stdsi = 8.75, Rt_prior = 2)
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1, Rt_sd_prior = 2)
   
   
   list_RMSE_sm_Simulx[[i]] <- Rt_comp_res$RMSE
@@ -226,7 +291,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_rm_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = interval[i], 
                              Rt_ref_df = true_Rt_df_ABM_rm, tstart = new_tstart[[i]], tend = new_tend[[i]], 
-                             meansi = 8.2, stdsi = 5, Rt_prior = 2)
+                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2)
   
   
   list_RMSE_sm_ABM_rm[[i]] <- Rt_comp_res$RMSE
@@ -251,7 +316,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = interval[i], 
                              Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[i]], tend = new_tend[[i]], 
-                             meansi = 8.2, stdsi = 5, Rt_prior = 2)
+                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2)
   
   
   list_RMSE_sm_ABM_hybrid[[i]] <- Rt_comp_res$RMSE
@@ -303,6 +368,127 @@ ggplot(comp_df_sm %>% filter(dept_id %in% c(1, 4, 9, 13)),
   labs(linetype = "", col = "smoothing window", fill = "smoothing window") +
   theme_bw()
   
+
+
+
+#### assignment day ####
+cl <- makeCluster(8)
+registerDoParallel(cl)
+
+assignment_day <- 0:6
+
+# Simulx
+list_Rt_res_ad_Simulx <- list()
+list_RMSE_ad_Simulx <- list()
+list_Rt_reg_ad_Simulx <- list()
+for(i in 1:length(interval)){
+  Rt_comp_res <- Rt_calc_ad_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncI_unscaled", model_name = assignment_day[i] + 1, 
+                             Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1, Rt_sd_prior = 2, 
+                             day_assigned = assignment_day[i])
+  
+  
+  list_RMSE_ad_Simulx[[i]] <- Rt_comp_res$RMSE
+  list_Rt_res_ad_Simulx[[i]] <- Rt_comp_res$Rt_comp 
+  
+  
+  list_Rt_reg_ad_Simulx[[i]] <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                                                  mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                                         BG1 = ifelse(day > 70, 1, 0)), 
+                                                model_name = interval[i])
+}
+
+Rt_res_ad_Simulx_df <- do.call("rbind.data.frame", list_Rt_res_ad_Simulx)
+reg_res_ad_Simulx_df <- do.call("rbind.data.frame", list_Rt_reg_ad_Simulx)
+
+
+# ABM rm
+list_Rt_res_ad_ABM_rm <- list()
+list_RMSE_ad_ABM_rm <- list()
+list_Rt_reg_ad_ABM_rm <- list()
+for(i in 1:length(interval)){
+  Rt_comp_res <- Rt_calc_ad_fun(Inc_df = data_ABM_rm_cov, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncI", model_name = assignment_day[i] + 1, 
+                             Rt_ref_df = true_Rt_df_ABM_rm, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2, 
+                             day_assigned = assignment_day[i])
+  
+  
+  list_RMSE_ad_ABM_rm[[i]] <- Rt_comp_res$RMSE
+  list_Rt_res_ad_ABM_rm[[i]] <- Rt_comp_res$Rt_comp 
+  
+  
+  list_Rt_reg_ad_ABM_rm[[i]] <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                                                  mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                                         BG1 = ifelse(day > 70, 1, 0)), 
+                                                model_name = interval[i])
+}
+
+Rt_res_ad_ABM_rm_df <- do.call("rbind.data.frame", list_Rt_res_ad_ABM_rm)
+reg_res_ad_ABM_rm_df <- do.call("rbind.data.frame", list_Rt_reg_ad_ABM_rm)
+
+
+# ABM hybrid
+list_Rt_res_ad_ABM_hybrid <- list()
+list_RMSE_ad_ABM_hybrid <- list()
+list_Rt_reg_ad_ABM_hybrid <- list()
+for(i in 1:length(interval)){
+  Rt_comp_res <- Rt_calc_ad_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncI", model_name = assignment_day[i] + 1, 
+                             Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2, 
+                             day_assigned = assignment_day[i])
+  
+  
+  list_RMSE_ad_ABM_hybrid[[i]] <- Rt_comp_res$RMSE
+  list_Rt_res_ad_ABM_hybrid[[i]] <- Rt_comp_res$Rt_comp 
+  
+  
+  list_Rt_reg_ad_ABM_hybrid[[i]] <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                                                      mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                                             BG1 = ifelse(day > 70, 1, 0)), 
+                                                    model_name = interval[i])
+}
+
+Rt_res_ad_ABM_hybrid_df <- do.call("rbind.data.frame", list_Rt_res_ad_ABM_hybrid)
+reg_res_ad_ABM_hybrid_df <- do.call("rbind.data.frame", list_Rt_reg_ad_ABM_hybrid)
+
+
+stopCluster(cl)
+
+
+comp_df_ad <- Rt_res_ad_Simulx_df %>%
+  mutate(model2 = "Simulx") %>%
+  bind_rows(Rt_res_ad_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
+  bind_rows(Rt_res_ad_ABM_rm_df %>% mutate(model2 = "ABM rm")) 
+
+reg_comp_df_ad <- reg_res_ad_Simulx_df %>%
+  mutate(model2 = "Simulx") %>%
+  bind_rows(reg_res_ad_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
+  bind_rows(reg_res_ad_ABM_rm_df %>% mutate(model2 = "ABM rm")) %>%
+  mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
+
+
+ggplot(reg_comp_df_ad, aes(x = model, y = value, col = model2)) + 
+  geom_pointrange(aes(ymin = CI_LL, ymax = CI_UL), position = position_dodge(width = 0.3)) + 
+  geom_line(aes(y = true_value), linetype = "dashed", col = "darkred") +
+  scale_x_continuous(breaks = 1:7) + 
+  facet_wrap(~parameter) + 
+  labs(y = "coefficient value", x = "Rt assignment day", col = "model") + 
+  scale_color_brewer(palette = "Dark2") +
+  theme_bw()
+
+ggplot(comp_df_ad %>% filter(dept_id %in% c(1, 4, 9, 13)), 
+       aes(x = day, y = Rt)) + 
+  geom_ribbon(aes(ymin = CI_LL, ymax = CI_UL, fill = as.factor(model)), alpha = 0.1) +
+  geom_line(aes(linetype = "estimated", col = as.factor(model))) + 
+  geom_line(aes(y = Rt_real, linetype = "real")) + 
+  facet_grid(cols = vars(dept_id), rows = vars(model2)) + 
+  scale_color_viridis_d() + 
+  scale_fill_viridis_d() +
+  labs(linetype = "", col = "Rt assignment day", fill = "Rt assignment day") +
+  theme_bw()
   
   
 #### NPI lag ####
@@ -318,7 +504,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI_unscaled", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
-                             meansi = 10.1, stdsi = 8.75, Rt_prior = 2)
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
   
   reg <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
                            mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
@@ -340,7 +526,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncH_unscaled", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
-                             meansi = 10.1, stdsi = 8.75, Rt_prior = 2)
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
   
   reg <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
                            mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
