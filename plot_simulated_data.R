@@ -13,6 +13,7 @@ setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
 dir1 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 dir5 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once4"
 dir6 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once6"
+dir7 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once7"
 
 
 # load data
@@ -34,6 +35,13 @@ data_ABM_rm_cov6 <- read.csv(paste0(dir6, "/data_covasim_rm6_Rt_4.csv")) %>%
 data_ABM_hybrid_cov6 <- read.csv(paste0(dir6, "/data_covasim_hybrid6_Rt_1.csv")) %>%
   filter(day > 15) %>%
   mutate(day = day - 15)
+
+data_ABM_rm_cov7 <- read.csv(paste0(dir7, "/data_covasim_rm7_Rt_1.csv")) %>%
+  filter(day > 29) %>%
+  mutate(day = day - 29)
+data_ABM_hybrid_cov7 <- read.csv(paste0(dir7, "/data_covasim_hybrid7_Rt_1.csv")) %>%
+  filter(day > 29) %>%
+  mutate(day = day - 29)
 
 
 # plot time series of cases and hospitalization and deaths (SEIRAHD only)
@@ -198,3 +206,42 @@ p8
         plot.tag = element_text(size = 18, family = "serif", face = "bold", hjust = 0, vjust = 0))
 
 ggsave("Data generation high NPI 2.jpeg", dpi = 400, width = 16, height = 9.5)
+
+
+
+# longer pre-analysis period (ABM7)
+p9 <- ggplot(data_ABM_rm_cov7, aes(x = day, y = IncI, group = dept_id)) +  
+  annotate("rect", xmin = 16, xmax = 71, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
+  annotate("rect", xmin = 71, xmax = 121, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
+  annotate("label", x = c(43, 96), y = Inf, label = c("NPI 1", "NPI 2"), 
+           hjust = 0.5, vjust = 1, size = 4.5, fontface = 2, family = "serif") + 
+  geom_line() + 
+  scale_x_continuous(expand = c(0.01, 0.01), breaks = seq(0, 120, 10)) + 
+  labs(title = "Random mixing ABM", 
+       x = "Day", y = "Cases") +
+  theme_bw() +
+  theme(plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12))
+
+p9
+
+p10 <- ggplot(data_ABM_hybrid_cov7, aes(x = day, y = IncI, group = dept_id)) +  
+  annotate("rect", xmin = 16, xmax = 71, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
+  annotate("rect", xmin = 71, xmax = 121, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
+  annotate("label", x = c(43, 96), y = Inf, label = c("NPI 1", "NPI 2"), 
+           hjust = 0.5, vjust = 1, size = 4.5, fontface = 2, family = "serif") + 
+  geom_line()  + 
+  scale_x_continuous(expand = c(0.01, 0.01), breaks = seq(0, 120, 10)) + 
+  labs(title = "Multi-layer ABM", 
+       x = "Day", y = "Cases") +
+  theme_bw() +
+  theme(plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12))
+
+p10
+
+p9 + p10
