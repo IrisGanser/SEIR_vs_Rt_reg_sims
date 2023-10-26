@@ -106,6 +106,54 @@ save(reg_res_I_2params_all_ABM_hybrid6_df, file = "reg_res_I_2params_all_ABM_hyb
 
 
 
+#### ABM 7 models ####
+dir7 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_ABM7"
+reg_res_list_I_2params_all_ABM_rm7 <- vector(mode = "list")
+reg_res_list_I_2params_all_ABM_hybrid7 <- vector(mode = "list")
+
+cl <- makeCluster(10)
+registerDoParallel(cl)
+
+# random mixing
+for(j in 1:100){
+  
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_rm7_", j, ".txt"), 
+                             header = TRUE, sep = ",")
+  
+  res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
+                                meansi = 8.2, stdsi = 5)
+  
+  
+  reg_res_list_I_2params_all_ABM_rm7[[j]] <- res_all_I
+  
+}
+
+
+reg_res_I_2params_all_ABM_rm7_df <- do.call("rbind.data.frame", reg_res_list_I_2params_all_ABM_rm7)
+save(reg_res_I_2params_all_ABM_rm7_df, file = "reg_res_I_2params_all_ABM_rm7_df.RData")
+
+
+# hybrid
+for(j in 1:100){
+  
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_hybrid7_", j, ".txt"), 
+                             header = TRUE, sep = ",")
+  
+  res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
+                                meansi = 7.8, stdsi = 4.4)
+  
+  
+  reg_res_list_I_2params_all_ABM_hybrid7[[j]] <- res_all_I
+  
+}
+
+stopCluster(cl)
+
+reg_res_I_2params_all_ABM_hybrid7_df <- do.call("rbind.data.frame", reg_res_list_I_2params_all_ABM_hybrid7)
+save(reg_res_I_2params_all_ABM_hybrid7_df, file = "reg_res_I_2params_all_ABM_hybrid7_df.RData")
+
+
+
 #### Simulx SEIRAHD 2 models ####
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 
