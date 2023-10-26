@@ -51,7 +51,7 @@ data_ABM_hybrid_cov <- read.csv(paste0(dir3, "/data_covasim_hybrid5_Rt_1.csv")) 
   mutate(day = day - 15)
 
 
-ggplot(data_ABM_rm_cov, aes(x = day, y = Rt, group = dept_id)) + 
+ggplot(data_ABM_hybrid_cov, aes(x = day, y = Rt, group = dept_id)) + 
   geom_line() +
   scale_x_continuous(expand = c(0.01, 0.01)) + 
   labs(title = "Rt from ABM model", y = "Rt") + 
