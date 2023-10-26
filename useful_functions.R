@@ -1,5 +1,5 @@
 EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, lag_days = 0, 
-                             meansi = 7.5, stdsi = 5){
+                             meansi = 7.5, stdsi = 5, meanprior = 2, stdprior = 4){
 
   
   Rt_list <- foreach(i = 1:94, .packages = c("tidyverse", "EpiEstim")) %dopar% {
@@ -13,7 +13,8 @@ EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, 
                            config = make_config(list(
                              mean_si = meansi,
                              std_si = stdsi, 
-                             mean_prior = 2)))$R
+                             mean_prior = meanprior, 
+                             std_prior = stdprior)))$R
     Rt_estim <- Rt_estim %>%
       mutate(t = (t_end+t_start)/2,
              id = i, .before = t_start) %>%
@@ -188,7 +189,8 @@ loadRData <- function(fileName){
 }
 
 
-EpiEstim_only_fun <- function(data_for_est, Inc_name, meansi = 7.5, stdsi = 5){
+EpiEstim_only_fun <- function(data_for_est, Inc_name, meansi = 7.5, stdsi = 5, 
+                              meanprior = 2, stdprior = 4){
   
   
   Rt_list <- foreach(i = 1:94, .packages = c("tidyverse", "EpiEstim")) %dopar% {
@@ -202,7 +204,8 @@ EpiEstim_only_fun <- function(data_for_est, Inc_name, meansi = 7.5, stdsi = 5){
                            config = make_config(list(
                              mean_si = meansi,
                              std_si = stdsi, 
-                             mean_prior = 2)))$R
+                             mean_prior = meanprior, 
+                             str_prior = stdprior)))$R
     Rt_estim <- Rt_estim %>%
       mutate(t = (t_end+t_start)/2,
              id = i, .before = t_start) %>%
