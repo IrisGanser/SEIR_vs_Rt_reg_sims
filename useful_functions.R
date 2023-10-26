@@ -28,8 +28,10 @@ EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, 
     
     reg_data <- data_for_est %>%
       dplyr::select(dept_id, day, lockdown1, BG1) %>%
+      group_by(dept_id) %>%
       mutate(lockdown1 = lag(lockdown1, n = lag_days, default = 0), 
              BG1 = lag(BG1, n = lag_days, default = 0)) %>%
+      ungroup() %>%
       unique() %>%
       left_join(., Rt_df, by = c("dept_id", "day"))
     
@@ -108,14 +110,14 @@ bootstrap_summary <- function(bootstrap_list, true_val_NPI1 = -1.45, true_val_NP
                               levels = c("beta_ld1", "beta_BG1"),
                               labels = c("NPI 1", "NPI 2")), 
            true_value = ifelse(parameter == "NPI 1", true_val_NPI1, true_val_NPI2), 
-           unique_sims = length(unique(sim_rep)), 
+           unique_sims = n()/2, 
            CI_covers = ifelse(between(true_value, CI_LL2, CI_UL2), 1, 0), 
            bias = true_value - mean_est2, 
            rel_bias = abs(true_value - mean_est2)/abs(true_value)*100) %>%
     group_by(parameter) %>%
     mutate(perc_CI_covers = sum(CI_covers)/unique_sims*100, 
-           mean_bias = mean(bias), 
-           mean_rel_bias = mean(rel_bias))
+           mean_bias = mean(bias, na.rm = TRUE), 
+           mean_rel_bias = mean(rel_bias, na.rm = TRUE))
   
   return(boot_df)
 }
