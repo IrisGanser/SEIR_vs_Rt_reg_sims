@@ -360,8 +360,8 @@ ggplot(reg_comp_df_sm, aes(x = model, y = value, col = model2)) +
 ggplot(comp_df_sm %>% filter(dept_id %in% c(1, 4, 9, 13)), 
        aes(x = day, y = Rt)) + 
   geom_ribbon(aes(ymin = CI_LL, ymax = CI_UL, fill = as.factor(model)), alpha = 0.1) +
-  geom_line(aes(linetype = "estimated", col = as.factor(model))) + 
-  geom_line(aes(y = Rt_real, linetype = "real")) + 
+  geom_line(aes(linetype = "estimated Rt", col = as.factor(model))) + 
+  geom_line(aes(y = Rt_real, linetype = "real Rt")) + 
   facet_grid(cols = vars(dept_id), rows = vars(model2)) + 
   scale_color_viridis_d() + 
   scale_fill_viridis_d() +
@@ -487,20 +487,21 @@ ggplot(comp_df_ad %>% filter(dept_id %in% c(1, 4, 9, 13)),
   facet_grid(cols = vars(dept_id), rows = vars(model2)) + 
   scale_color_viridis_d() + 
   scale_fill_viridis_d() +
-  labs(linetype = "", col = "Rt assignment day", fill = "Rt assignment day") +
-  theme_bw()
+  labs(linetype = "", col = "Rt assignment \nday", fill = "Rt assignment \nday") +
+  theme_bw() +
+  theme(legend.position = "bottom")
   
   
 #### NPI lag ####
-lag <- 0:9
+lag <- 0:15
 
-cl <- makeCluster(8)
+cl <- makeCluster(6)
 registerDoParallel(cl)
 
 # Simulx
 list_Rt_reg_lag_Simulx <- list()
 list_Rt_reg_lag_fits_Simulx <- list()
-for(i in 1:length(interval)){
+for(i in 1:length(lag)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI_unscaled", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
@@ -522,7 +523,7 @@ reg_res_lag_Simulx_fits_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_S
 
 list_Rt_reg_lag_Simulx_h <- list()
 list_Rt_reg_lag_fits_Simulx_h <- list()
-for(i in 1:length(interval)){
+for(i in 1:length(lag)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncH_unscaled", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
@@ -545,7 +546,7 @@ reg_res_lag_Simulx_h_fits_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits
 # ABM rm
 list_Rt_reg_lag_ABM_rm <- list()
 list_Rt_reg_lag_fits_ABM_rm <- list()
-for(i in 1:length(interval)){
+for(i in 1:length(lag)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_rm_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_ABM_rm, tstart = new_tstart[[7]], tend = new_tend[[7]], 
@@ -567,7 +568,7 @@ reg_res_lag_fits_ABM_rm_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_A
 # ABM hybrid
 list_Rt_reg_lag_ABM_hybrid <- list()
 list_Rt_reg_lag_fits_ABM_hybrid <- list()
-for(i in 1:length(interval)){
+for(i in 1:length(lag)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[7]], tend = new_tend[[7]], 
@@ -589,8 +590,15 @@ reg_res_lag_fits_ABM_hybrid_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fi
 
 stopCluster(cl)
 
+comp_df_lag_fits <- reg_res_lag_Simulx_fits_df %>%
+  mutate(model2 = "Simulx IncI") %>%
+  bind_rows(reg_res_lag_Simulx_h_fits_df %>% mutate(model2 = "Simulx IncH")) %>%
+  bind_rows(reg_res_lag_fits_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
+  bind_rows(reg_res_lag_fits_ABM_rm_df %>% mutate(model2 = "ABM rm")) 
+
 reg_comp_df_lag <- reg_res_lag_Simulx_df %>%
-  mutate(model2 = "Simulx") %>%
+  mutate(model2 = "Simulx IncI")  %>%
+  bind_rows(reg_res_lag_Simulx_h_df %>% mutate(model2 = "Simulx IncH"))%>%
   bind_rows(reg_res_lag_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(reg_res_lag_ABM_rm_df %>% mutate(model2 = "ABM rm")) %>%
   mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
@@ -599,23 +607,22 @@ reg_comp_df_lag <- reg_res_lag_Simulx_df %>%
 ggplot(reg_comp_df_lag, aes(x = model, y = value, col = model2)) + 
   geom_pointrange(aes(ymin = CI_LL, ymax = CI_UL), position = position_dodge(width = 0.3)) + 
   geom_line(aes(y = true_value), linetype = "dashed", col = "darkred") +
-  scale_x_continuous(breaks = 1:7) + 
+  scale_x_continuous(breaks = 0:15) + 
   facet_wrap(~parameter) + 
-  labs(y = "coefficient value", x = "lag", col = "model") + 
+  labs(y = "coefficient value", x = "NPI lag [days]", col = "model") + 
   scale_color_brewer(palette = "Dark2") +
   theme_bw()
 
 
 
-
-ggplot(reg_res_lag_Simulx_h_fits_df %>% filter(dept_id %in% c(1, 4, 9, 13)), 
+ggplot(comp_df_lag_fits %>% filter(dept_id %in% c(1, 4, 9, 13)), 
        aes(x = day, col = as.factor(lag))) + 
-  geom_line(aes(y = Rt, linetype = "EpiEstim"), col = "black", linewidth = 1) +
-  geom_line(aes(y = Rt_real, linetype = "Real"), col = "black", linewidth = 1) +
-  geom_line(aes(y = Rt_fitted, linetype = "Reg fit"), linewidth = 0.8) +
-  facet_wrap(~dept_id) + 
+  geom_line(aes(y = Rt, linetype = "EpiEstim Rt"), col = "black") +
+  geom_line(aes(y = Rt_real, linetype = "Real Rt"), col = "black") +
+  geom_line(aes(y = Rt_fitted, linetype = "Regression fit Rt")) +
+  facet_grid(cols = vars(dept_id), rows = vars(model2)) + 
   labs(col = "NPI lag [days]", linetype = "Rt") + 
-  scale_color_brewer(palette = "Dark2") +
+  scale_color_viridis_d() +
   scale_linetype_manual(values = c("dotted", "solid", "dashed")) +
   theme_bw()
 
