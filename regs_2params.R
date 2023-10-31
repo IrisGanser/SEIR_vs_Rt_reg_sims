@@ -160,7 +160,7 @@ dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params
 reg_res_list_I_2params_all_Simulx <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx <- vector(mode = "list")
 
-cl <- makeCluster(10)
+cl <- makeCluster(6)
 registerDoParallel(cl)
 
 for(j in 1:100){
@@ -168,7 +168,8 @@ for(j in 1:100){
   reg_data_all <- read.table(paste0(dir2, "/data_sim_SEIRAHD_Simulx_2params_new2_ME", j, ".txt"), 
                              header = TRUE, sep = ",") %>%
     pivot_wider(names_from = obs_id, values_from = obs, names_prefix = "obs_") %>%
-    rename(IncI = obs_3, IncH = obs_1)
+    rename(IncI = obs_3, IncH = obs_1) %>%
+    mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4)
   
   
   # infections
@@ -202,7 +203,7 @@ reg_res_list_I_2params_all_Simulx3 <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx3 <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx3_no_lag <- vector(mode = "list")
 
-cl <- makeCluster(10)
+cl <- makeCluster(6)
 registerDoParallel(cl)
 
 for(j in 1:100){
@@ -210,7 +211,8 @@ for(j in 1:100){
   reg_data_all <- read.table(paste0(dir2, "/data_sim_SEIRAHD_Simulx_2params_new3_ME", j, ".txt"), 
                              header = TRUE, sep = ",") %>%
     pivot_wider(names_from = obs_id, values_from = obs, names_prefix = "obs_") %>%
-    rename(IncI = obs_3, IncH = obs_1)
+    rename(IncI = obs_3, IncH = obs_1) %>%
+    mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4)
   
   
   # infections
@@ -241,3 +243,49 @@ reg_res_H_2params_all_Simulx_df3_no_lag <- do.call("rbind.data.frame", reg_res_l
 save(reg_res_I_2params_all_Simulx_df3, file = "reg_res_I_2params_all_Simulx_df3.RData")
 save(reg_res_H_2params_all_Simulx_df3, file = "reg_res_H_2params_all_Simulx_df3.RData")
 save(reg_res_H_2params_all_Simulx_df3_no_lag, file = "reg_res_H_2params_all_Simulx_df3_no_lag.RData")
+
+
+
+#### Simulx SEIRAHD 4 models ####
+dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
+
+reg_res_list_I_2params_all_Simulx4 <- vector(mode = "list")
+reg_res_list_H_2params_all_Simulx4 <- vector(mode = "list")
+
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+for(j in 1:100){
+  
+  reg_data_all <- read.table(paste0(dir2, "/data_sim_SEIRAHD_Simulx_2params_new4_ME", j, ".txt"), 
+                             header = TRUE, sep = ",") %>%
+    pivot_wider(names_from = obs_id, values_from = obs, names_prefix = "obs_") %>%
+    rename(IncI = obs_3, IncH = obs_1) %>%
+    mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4)
+  
+  
+  # infections
+  res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j,
+                                meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
+  
+  # hospitalizations, lagged by 5 days (mean time from infection to hospitalization)
+  res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 5,
+                                meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
+  
+  
+  reg_res_list_I_2params_all_Simulx4[[j]] <- res_all_I
+  reg_res_list_H_2params_all_Simulx4[[j]] <- res_all_H
+  
+}
+
+stopCluster(cl)
+
+reg_res_I_2params_all_Simulx_df4 <- do.call("rbind.data.frame", reg_res_list_I_2params_all_Simulx4)
+reg_res_H_2params_all_Simulx_df4 <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx4)
+
+save(reg_res_I_2params_all_Simulx_df4, file = "reg_res_I_2params_all_Simulx_df4.RData")
+save(reg_res_H_2params_all_Simulx_df4, file = "reg_res_H_2params_all_Simulx_df4.RData")
+
+
+
