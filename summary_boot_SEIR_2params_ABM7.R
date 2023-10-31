@@ -162,3 +162,58 @@ ggplot(ABM7_boot_df_comp_long, aes(ymin = CI_LL, ymax = CI_UL, x = sim_rep, y = 
        x = "simulation dataset", y = "coefficient value") +
   theme_bw() +
   scale_color_brewer(palette = "Dark2")
+
+
+#### comparison of point estimates ####
+point_est_h_list <- list()
+point_est_h_nc_list <- list()
+point_est_rm_list <- list()
+point_est_rm_nc_list <- list()
+
+for(j in 1:32){
+  point_est_h <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_", j, "/populationParameters.txt"), 
+                          header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 6 hybrid old code") %>%
+    rename(mean_est2 = value)
+  
+  point_est_h_nc <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_nc_", j, "/populationParameters.txt"), 
+                            header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 6 hybrid new code") %>%
+    rename(mean_est2 = value)
+  
+  point_est_rm <- read.table(paste0(getwd(), "/ABM_rm7_pe_", j, "/populationParameters.txt"), 
+                            header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 6 rm old code") %>%
+    rename(mean_est2 = value)
+  
+  point_est_rm_nc <- read.table(paste0(getwd(), "/ABM_rm7_pe_nc_", j, "/populationParameters.txt"), 
+                            header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 6 rm new code") %>%
+    rename(mean_est2 = value)
+  
+  point_est_h_list[[j]] <- point_est_h
+  point_est_h_nc_list[[j]] <- point_est_h_nc
+  point_est_rm_list[[j]] <- point_est_rm
+  point_est_rm_nc_list[[j]] <- point_est_rm_nc
+}
+
+point_est_h_df <- do.call("rbind.data.frame", point_est_h_list)
+point_est_h_nc_df <- do.call("rbind.data.frame", point_est_h_nc_list)
+point_est_rm_df <- do.call("rbind.data.frame", point_est_rm_list)
+point_est_rm_nc_df <- do.call("rbind.data.frame", point_est_rm_nc_list)
+
+comp_df_ABM7_nc <- bind_rows(point_est_h_df, point_est_h_nc_df, point_est_rm_df, point_est_rm_nc_df) %>%
+  mutate(code = ifelse(grepl("old", model), "old", "new"), 
+         model2 = ifelse(grepl("hybrid", model), "hybrid", "random mixing"), 
+         parameter = ifelse(grepl("ld", parameter), "NPI 1", "NPI 2"),
+         true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
+
+ggplot(comp_df_ABM7_nc, aes(x = sim_rep, y = mean_est2, col = model2)) +
+  geom_point(aes(shape = code)) +
+  geom_line(aes(y = true_value), col = "darkred", linetype = "dashed") + 
+  facet_wrap(~parameter) + 
+  scale_color_brewer(palette = "Dark2")
