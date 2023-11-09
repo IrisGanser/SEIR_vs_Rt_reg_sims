@@ -4,7 +4,7 @@ library(magrittr)
 library(kableExtra)
 
 
-source("~/PhD/COVID_France/SEIR_vs_Rt_sims/useful_functions.R")
+source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.R")
 
 
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/plots")
@@ -161,3 +161,91 @@ metric_df_Simulx3 %>%
   pack_rows("NPI 1", 1, 3) %>%
   pack_rows("NPI 2", 4, 6)
 
+
+
+#### Simulx 4 plots ####
+# load data
+load(paste0(dir, "/reg_res_I_2params_all_Simulx_df4.RData"))
+load(paste0(dir, "/reg_res_H_2params_all_Simulx_df4.RData"))
+load(paste0(dir, "/reg_res_I_2params_all_Simulx_df4_m10.RData"))
+load(paste0(dir, "/reg_res_H_2params_all_Simulx_df4_m10.RData"))
+
+
+reg_res_2params_Simulx_new4 <- reg_res_I_2params_all_Simulx_df4 %>%
+  mutate(model = "Regression model IncI") %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df4 %>% mutate(model = "Regression model IncH")) %>%
+  reg_summary(true_val_NPI2 = -0.5)  %>% 
+  rename(sim_rep = rep, mean_est = value)
+
+br_palette <- diverging_hcl("Blue-Red", n = 20)
+comp_cols <- c(br_palette[c(1, 5)], "black", br_palette[c(16, 20)])
+
+ggplot(reg_res_2params_Simulx_new4, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL, col = model)) + 
+  geom_pointrange(position = position_dodge(width = 0.8)) +
+  geom_line(aes(y = true_value), col = "black", linetype = "dashed", linewidth = 0.8) + 
+  facet_wrap(~parameter, scales = "free_y", nrow = 2) +
+  labs(title = "2-step regression models, Simulx 4", 
+       x = "Simulation data set", y = "Coefficient value", col = "") + 
+  scale_color_manual(values = comp_cols[-c(3:5)]) +
+  theme_bw() +
+  theme(plot.title = element_text(family = "serif", size = 20), 
+        axis.title = element_text(family = "serif", size = 15), 
+        axis.text.x = element_text(family = "serif", size = 13), 
+        axis.text.y = element_text(family = "serif", size = 13), 
+        legend.text = element_text(family = "serif", size = 14.5))
+
+
+# comparison with Simulx 2 model
+reg_res_2params_Simulx_new4_comp2 <- reg_res_I_2params_all_Simulx_df4 %>%
+  mutate(model = "Regression model IncI long") %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df4 %>% mutate(model = "Regression model IncH long")) %>%
+  bind_rows(reg_res_I_2params_all_Simulx_df4_m10 %>% mutate(model = "Regression model IncI long m10")) %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df4_m10 %>% mutate(model = "Regression model IncH long m10")) %>%
+  bind_rows(reg_res_I_2params_all_Simulx_df %>% mutate(model = "Regression model IncI")) %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df %>% mutate(model = "Regression model IncH")) %>%
+  reg_summary(true_val_NPI2 = -0.5)  %>% 
+  rename(sim_rep = rep, mean_est = value)
+
+br_palette <- diverging_hcl("Blue-Red", n = 20)
+plot_cols <- c(br_palette[c(1, 3, 6)], br_palette[c(20, 17, 14)])
+
+ggplot(reg_res_2params_Simulx_new4_comp2, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL, col = model)) + 
+  geom_pointrange(position = position_dodge(width = 0.8)) +
+  geom_line(aes(y = true_value), col = "black", linetype = "dashed", linewidth = 0.8) + 
+  facet_wrap(~parameter, scales = "free_y", nrow = 2) +
+  labs(title = "2-step regression models", 
+       x = "Simulation data set", y = "Coefficient value", col = "") + 
+  scale_color_manual(values = plot_cols) +
+  theme_bw() +
+  theme(plot.title = element_text(family = "serif", size = 20), 
+        axis.title = element_text(family = "serif", size = 15), 
+        axis.text.x = element_text(family = "serif", size = 13), 
+        axis.text.y = element_text(family = "serif", size = 13), 
+        legend.text = element_text(family = "serif", size = 14.5))
+
+
+# metrics table
+# bring into right format for metrics table
+metric_df_Simulx4 <- reg_res_2params_Simulx_new4_comp2 %>%
+  dplyr::select(parameter, model, perc_CI_covers, mean_bias, mean_rel_bias) %>%
+  unique() %>%
+  arrange(model) %>%
+  rename(coverage = perc_CI_covers, bias = mean_bias, relbias = mean_rel_bias) %>%
+  pivot_longer(cols = c(coverage, bias, relbias), 
+               names_to = "metric", 
+               values_to = "value") %>%
+  pivot_wider(names_from = model, values_from = value) %>%
+  mutate(metric = factor(metric, levels = c("coverage", "bias", "relbias"))) %>%
+  arrange (parameter, metric) %>%
+  mutate(metric = case_when(metric == "bias" ~ "absolute bias", 
+                            metric == "coverage" ~ "CI coverage (%)", 
+                            metric == "relbias" ~ "relative bias (%)"))
+
+# print metrics table
+metric_df_Simulx4 %>% 
+  ungroup() %>%
+  dplyr::select(-parameter) %>%
+  kable(digits = 2, format = "html", table.attr = "style='width:40%;'") %>%
+  kable_styling(bootstrap_options = "striped") %>%
+  pack_rows("NPI 1", 1, 3) %>%
+  pack_rows("NPI 2", 4, 6)
