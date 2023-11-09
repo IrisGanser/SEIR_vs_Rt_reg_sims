@@ -18,6 +18,7 @@ source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once7"
 
+
 popsize_df <- read.csv(paste0(dir2, "/popsize_df.csv")) %>%
   mutate(dept_id = ifelse(dept_id > 20, dept_id-1, dept_id))
 
@@ -31,14 +32,21 @@ dataset1_Simulx <- data_list_Simulx[[1]] %>%
   left_join(popsize_df, by = c("id" = "dept_id")) %>%
   left_join(ind_param_list[[1]], by = "id") %>%
   mutate(Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
-         IncI_unscaled = round(IncI*popsize/10^4), 
-         IncH_unscaled = round(IncH*popsize/10^4), 
+         IncI_unscaled = IncI*popsize/10^4, 
+         IncH_unscaled = IncH*popsize/10^4, 
          lockdown1 = ifelse(between(time, 16, 70), 1, 0), 
          BG1 = ifelse(time > 70, 1, 0)) %>% 
   rename(dept_id = id, day = time)
 
 true_Rt_df_Simulx <- dataset1_Simulx %>% dplyr::select(dept_id, day, Rt_SEIRAHD) %>% 
   rename(Rt_real = Rt_SEIRAHD)
+
+data_SEIRAHD_1 <- read.table(paste0(dir2, "/data_sim_SEIRAHD_Simulx_2params_new2_ME1.txt"), 
+                             header = TRUE, sep = ",") %>%
+  pivot_wider(names_from = obs_id, values_from = obs, names_prefix = "obs_") %>%
+  rename(IncI = obs_3, IncH = obs_1) %>%
+  # unscale the data, as they had been scaled to 10^4 population before
+  mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4) 
 
 
 data_ABM_rm_cov <- read.csv(paste0(dir3, "/data_covasim_rm7_Rt_1.csv")) %>%
@@ -84,7 +92,7 @@ Rt_calc_fun <- function(Inc_df, id_col_name, time_col_name, Inc_col_name, model_
                                                          mean_prior = Rt_prior, 
                                                          std_prior = Rt_sd_prior)))$R
       Rt_estim_I <- Rt_estim_I %>%
-        mutate(t = ceiling((t_end+t_start)/2)-1,
+        mutate(t = (t_end+t_start)/2,
                id = unique(Inc_data$id)[i], .before = t_start) %>%
         select(t, t_start, t_end, id, `Mean(R)`, `Quantile.0.025(R)`, `Quantile.0.975(R)`) %>%
         rename(Rt = `Mean(R)`, CI_LL = `Quantile.0.025(R)`, CI_UL = `Quantile.0.975(R)`)
@@ -101,7 +109,7 @@ Rt_calc_fun <- function(Inc_df, id_col_name, time_col_name, Inc_col_name, model_
                                  mean_prior = Rt_prior, 
                                  std_prior = Rt_sd_prior)))$R
       Rt_estim_I <- Rt_estim_I %>%
-        mutate(t = ceiling((t_end+t_start)/2),
+        mutate(t = (t_end+t_start)/2,
                id = unique(Inc_data$id)[i], .before = t_start) %>%
         select(t, t_start, t_end, id, `Mean(R)`, `Quantile.0.025(R)`, `Quantile.0.975(R)`) %>%
         rename(Rt = `Mean(R)`, CI_LL = `Quantile.0.025(R)`, CI_UL = `Quantile.0.975(R)`)
@@ -283,6 +291,30 @@ Rt_res_sm_Simulx_df <- do.call("rbind.data.frame", list_Rt_res_sm_Simulx)
 reg_res_sm_Simulx_df <- do.call("rbind.data.frame", list_Rt_reg_sm_Simulx)
 
 
+list_Rt_res_sm_Simulx_h <- list()
+list_RMSE_sm_Simulx_h <- list()
+list_Rt_reg_sm_Simulx_h <- list()
+for(i in 1:length(interval)){
+  Rt_comp_res <- Rt_calc_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncH_unscaled", model_name = interval[i], 
+                             Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[i]], tend = new_tend[[i]], 
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1, Rt_sd_prior = 2)
+  
+  
+  list_RMSE_sm_Simulx_h[[i]] <- Rt_comp_res$RMSE
+  list_Rt_res_sm_Simulx_h[[i]] <- Rt_comp_res$Rt_comp 
+  
+  
+  list_Rt_reg_sm_Simulx_h[[i]] <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                                                  mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                                         BG1 = ifelse(day > 70, 1, 0)), 
+                                                model_name = interval[i])
+}
+
+Rt_res_sm_Simulx_df_h <- do.call("rbind.data.frame", list_Rt_res_sm_Simulx_h)
+reg_res_sm_Simulx_df_h <- do.call("rbind.data.frame", list_Rt_reg_sm_Simulx_h)
+
+
 # ABM rm
 list_Rt_res_sm_ABM_rm <- list()
 list_RMSE_sm_ABM_rm <- list()
@@ -316,7 +348,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = interval[i], 
                              Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[i]], tend = new_tend[[i]], 
-                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2)
+                             meansi = 7.8, stdsi = 4.4, Rt_prior = 1, Rt_sd_prior = 2)
   
   
   list_RMSE_sm_ABM_hybrid[[i]] <- Rt_comp_res$RMSE
@@ -337,12 +369,14 @@ stopCluster(cl)
   
 
 comp_df_sm <- Rt_res_sm_Simulx_df %>%
-  mutate(model2 = "Simulx") %>%
+  mutate(model2 = "Simulx IncI") %>%
+  bind_rows(Rt_res_sm_Simulx_df_h %>% mutate(model2 = "Simulx IncH")) %>%
   bind_rows(Rt_res_sm_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(Rt_res_sm_ABM_rm_df %>% mutate(model2 = "ABM rm")) 
 
 reg_comp_df_sm <- reg_res_sm_Simulx_df %>%
-  mutate(model2 = "Simulx") %>%
+  mutate(model2 = "Simulx IncI") %>%
+  bind_rows(reg_res_sm_Simulx_df_h %>% mutate(model2 = "Simulx IncH")) %>%
   bind_rows(reg_res_sm_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(reg_res_sm_ABM_rm_df %>% mutate(model2 = "ABM rm")) %>%
   mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
@@ -353,7 +387,8 @@ ggplot(reg_comp_df_sm, aes(x = model, y = value, col = model2)) +
   geom_line(aes(y = true_value), linetype = "dashed", col = "darkred") +
   scale_x_continuous(breaks = 1:7) + 
   facet_wrap(~parameter) + 
-  labs(y = "coefficient value", x = "Smoothing window", col = "model") + 
+  labs(y = "coefficient value", x = "Smoothing window", col = "model", 
+       title = "Smoothing window comparisons") + 
   scale_color_brewer(palette = "Dark2") +
   theme_bw()
 
@@ -403,6 +438,34 @@ Rt_res_ad_Simulx_df <- do.call("rbind.data.frame", list_Rt_res_ad_Simulx)
 reg_res_ad_Simulx_df <- do.call("rbind.data.frame", list_Rt_reg_ad_Simulx)
 
 
+
+list_Rt_res_ad_Simulx_h <- list()
+list_RMSE_ad_Simulx_h <- list()
+list_Rt_reg_ad_Simulx_h <- list()
+for(i in 1:length(interval)){
+  Rt_comp_res <- Rt_calc_ad_fun(Inc_df = dataset1_Simulx, id_col_name = "dept_id", time_col_name = "day", 
+                                Inc_col_name = "IncH_unscaled", model_name = assignment_day[i] + 1, 
+                                Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                                meansi = 10.1, stdsi = 8.75, Rt_prior = 1, Rt_sd_prior = 2, 
+                                day_assigned = assignment_day[i])
+  
+  
+  list_RMSE_ad_Simulx_h[[i]] <- Rt_comp_res$RMSE
+  list_Rt_res_ad_Simulx_h[[i]] <- Rt_comp_res$Rt_comp 
+  
+  
+  list_Rt_reg_ad_Simulx_h[[i]] <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                                                  mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                                         BG1 = ifelse(day > 70, 1, 0)), 
+                                                model_name = interval[i])
+}
+
+Rt_res_ad_Simulx_df_h <- do.call("rbind.data.frame", list_Rt_res_ad_Simulx)
+reg_res_ad_Simulx_df_h <- do.call("rbind.data.frame", list_Rt_reg_ad_Simulx)
+
+
+
+
 # ABM rm
 list_Rt_res_ad_ABM_rm <- list()
 list_RMSE_ad_ABM_rm <- list()
@@ -437,7 +500,7 @@ for(i in 1:length(interval)){
   Rt_comp_res <- Rt_calc_ad_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = assignment_day[i] + 1, 
                              Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[7]], tend = new_tend[[7]], 
-                             meansi = 8.2, stdsi = 5, Rt_prior = 1, Rt_sd_prior = 2, 
+                             meansi = 7.8, stdsi = 4.4, Rt_prior = 1, Rt_sd_prior = 2, 
                              day_assigned = assignment_day[i])
   
   
@@ -459,12 +522,14 @@ stopCluster(cl)
 
 
 comp_df_ad <- Rt_res_ad_Simulx_df %>%
-  mutate(model2 = "Simulx") %>%
+  mutate(model2 = "Simulx IncI") %>%
+  bind_rows(Rt_res_ad_Simulx_df_h %>% mutate(model2 = "Simulx IncH")) %>%
   bind_rows(Rt_res_ad_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(Rt_res_ad_ABM_rm_df %>% mutate(model2 = "ABM rm")) 
 
 reg_comp_df_ad <- reg_res_ad_Simulx_df %>%
   mutate(model2 = "Simulx") %>%
+  bind_rows(reg_res_ad_Simulx_df_h %>% mutate(model2 = "Simulx IncH")) %>%
   bind_rows(reg_res_ad_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(reg_res_ad_ABM_rm_df %>% mutate(model2 = "ABM rm")) %>%
   mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
@@ -488,14 +553,13 @@ ggplot(comp_df_ad %>% filter(dept_id %in% c(1, 4, 9, 13)),
   scale_color_viridis_d() + 
   scale_fill_viridis_d() +
   labs(linetype = "", col = "Rt assignment \nday", fill = "Rt assignment \nday") +
-  theme_bw() +
-  theme(legend.position = "bottom")
+  theme_bw() 
   
   
 #### NPI lag ####
 lag <- 0:15
 
-cl <- makeCluster(6)
+cl <- makeCluster(10)
 registerDoParallel(cl)
 
 # Simulx
@@ -543,6 +607,52 @@ reg_res_lag_Simulx_h_df <- do.call("rbind.data.frame", list_Rt_reg_lag_Simulx_h)
 reg_res_lag_Simulx_h_fits_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_Simulx_h)
 
 
+# SEIRAHD data with measurement error
+list_Rt_reg_lag_SEIRAHD <- list()
+list_Rt_reg_lag_fits_SEIRAHD <- list()
+for(i in 1:length(lag)){
+  Rt_comp_res <- Rt_calc_fun(Inc_df = data_SEIRAHD_1, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncI", model_name = lag[i], 
+                             Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
+  
+  reg <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                           mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                  BG1 = ifelse(day > 70, 1, 0)), 
+                         model_name = lag[i], lag_NPIs = TRUE, lag_days = lag[i], fits = TRUE)
+  
+  list_Rt_reg_lag_SEIRAHD[[i]] <- reg$coefs
+  list_Rt_reg_lag_fits_SEIRAHD[[i]] <- reg$fits
+  
+}
+
+reg_res_lag_SEIRAHD_df <- do.call("rbind.data.frame", list_Rt_reg_lag_SEIRAHD)
+reg_res_lag_SEIRAHD_fits_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_SEIRAHD)
+
+
+list_Rt_reg_lag_SEIRAHD_h <- list()
+list_Rt_reg_lag_fits_SEIRAHD_h <- list()
+for(i in 1:length(lag)){
+  Rt_comp_res <- Rt_calc_fun(Inc_df = data_SEIRAHD_1, id_col_name = "dept_id", time_col_name = "day", 
+                             Inc_col_name = "IncH", model_name = lag[i], 
+                             Rt_ref_df = true_Rt_df_Simulx, tstart = new_tstart[[7]], tend = new_tend[[7]], 
+                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
+  
+  reg <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
+                           mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
+                                  BG1 = ifelse(day > 70, 1, 0)), 
+                         model_name = lag[i], lag_NPIs = TRUE, lag_days = lag[i], fits = TRUE)
+  
+  list_Rt_reg_lag_SEIRAHD_h[[i]] <- reg$coefs
+  list_Rt_reg_lag_fits_SEIRAHD_h[[i]] <- reg$fits
+  
+}
+
+reg_res_lag_SEIRAHD_h_df <- do.call("rbind.data.frame", list_Rt_reg_lag_SEIRAHD_h)
+reg_res_lag_SEIRAHD_fits_h_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_SEIRAHD_h)
+
+
+
 # ABM rm
 list_Rt_reg_lag_ABM_rm <- list()
 list_Rt_reg_lag_fits_ABM_rm <- list()
@@ -572,7 +682,7 @@ for(i in 1:length(lag)){
   Rt_comp_res <- Rt_calc_fun(Inc_df = data_ABM_hybrid_cov, id_col_name = "dept_id", time_col_name = "day", 
                              Inc_col_name = "IncI", model_name = lag[i], 
                              Rt_ref_df = true_Rt_df_ABM_hybrid, tstart = new_tstart[[7]], tend = new_tend[[7]], 
-                             meansi = 8.2, stdsi = 5, Rt_prior = 2)
+                             meansi = 7.8, stdsi = 4.4, Rt_prior = 2)
   
   
   reg <- Rt_reg_only_fun(data_for_est = Rt_comp_res$Rt_comp %>%
@@ -593,18 +703,23 @@ stopCluster(cl)
 comp_df_lag_fits <- reg_res_lag_Simulx_fits_df %>%
   mutate(model2 = "Simulx IncI") %>%
   bind_rows(reg_res_lag_Simulx_h_fits_df %>% mutate(model2 = "Simulx IncH")) %>%
+  bind_rows(reg_res_lag_SEIRAHD_fits_df %>% mutate(model2 = "SEIRAHD IncI")) %>%
+  bind_rows(reg_res_lag_SEIRAHD_fits_h_df %>% mutate(model2 = "SEIRAHD IncH")) %>%
   bind_rows(reg_res_lag_fits_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(reg_res_lag_fits_ABM_rm_df %>% mutate(model2 = "ABM rm")) 
 
 reg_comp_df_lag <- reg_res_lag_Simulx_df %>%
   mutate(model2 = "Simulx IncI")  %>%
   bind_rows(reg_res_lag_Simulx_h_df %>% mutate(model2 = "Simulx IncH"))%>%
+  bind_rows(reg_res_lag_SEIRAHD_df %>% mutate(model2 = "SEIRAHD IncI"))%>%
+  bind_rows(reg_res_lag_SEIRAHD_h_df %>% mutate(model2 = "SEIRAHD IncH"))%>%
   bind_rows(reg_res_lag_ABM_hybrid_df %>% mutate(model2 = "ABM hybrid")) %>%
   bind_rows(reg_res_lag_ABM_rm_df %>% mutate(model2 = "ABM rm")) %>%
   mutate(true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
 
 
-ggplot(reg_comp_df_lag, aes(x = model, y = value, col = model2)) + 
+ggplot(reg_comp_df_lag %>% filter(!grepl("SEIRAHD", model2)), 
+       aes(x = model, y = value, col = model2)) + 
   geom_pointrange(aes(ymin = CI_LL, ymax = CI_UL), position = position_dodge(width = 0.3)) + 
   geom_line(aes(y = true_value), linetype = "dashed", col = "darkred") +
   scale_x_continuous(breaks = 0:15) + 
@@ -615,7 +730,7 @@ ggplot(reg_comp_df_lag, aes(x = model, y = value, col = model2)) +
 
 
 
-ggplot(comp_df_lag_fits %>% filter(dept_id %in% c(1, 4, 9, 13)), 
+ggplot(comp_df_lag_fits %>% filter(dept_id %in% c(1, 4, 9, 13) & !grepl("SEIRAHD", model2)), 
        aes(x = day, col = as.factor(lag))) + 
   geom_line(aes(y = Rt, linetype = "EpiEstim Rt"), col = "black") +
   geom_line(aes(y = Rt_real, linetype = "Real Rt"), col = "black") +
@@ -627,5 +742,23 @@ ggplot(comp_df_lag_fits %>% filter(dept_id %in% c(1, 4, 9, 13)),
   theme_bw()
 
 
+# best lag depends on NPI
+reg_comp_df_lag %>% 
+  group_by(model2, parameter) %>%
+  mutate(bias = abs(value - true_value)) %>%
+  filter(parameter == "NPI 1" & bias == min(bias)) 
+
+reg_comp_df_lag %>% 
+  group_by(model2, parameter) %>%
+  mutate(bias = abs(value - true_value)) %>%
+  filter(parameter == "NPI 2" & bias == min(bias)) 
+
+
+save(reg_res_lag_Simulx_df, reg_res_lag_Simulx_h_df, 
+     reg_res_lag_ABM_hybrid_df, reg_res_lag_ABM_rm_df, 
+     file = "Simulx2_reg_res_lag.RData")
+save(reg_res_lag_Simulx_fits_df, reg_res_lag_Simulx_h_fits_df, 
+     reg_res_lag_fits_ABM_hybrid_df, reg_res_lag_fits_ABM_rm_df, 
+     file = "Simulx2_reg_fits_lag.RData")
 
 
