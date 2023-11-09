@@ -21,6 +21,8 @@ data_SEIRAHD2 <- read.table(paste0(dir1, "/data_sim_SEIRAHD_Simulx_2params_new2_
                            header = TRUE, sep = ",")
 data_SEIRAHD3 <- read.table(paste0(dir1, "/data_sim_SEIRAHD_Simulx_2params_new3_ME1.txt"), 
                             header = TRUE, sep = ",")
+data_SEIRAHD4 <- read.table(paste0(dir1, "/data_sim_SEIRAHD_Simulx_2params_new4_ME1.txt"), 
+                            header = TRUE, sep = ",")
 
 data_ABM_rm_cov5 <- read.csv(paste0(dir5, "/data_covasim_rm5_Rt_1.csv")) %>%
   filter(day > 15) %>%
@@ -245,3 +247,47 @@ p10 <- ggplot(data_ABM_hybrid_cov7, aes(x = day, y = IncI, group = dept_id)) +
 p10
 
 p9 + p10
+ggsave("Data generation ABM6.jpeg", dpi = 400, width = 12, height = 5)
+
+
+
+### SEIRAHD 4 ####
+p11 <- ggplot(data_SEIRAHD4 %>% filter(obs_id == 3), 
+             aes(x = day, y = obs*popsize/10^4, group = dept_id)) +  
+  annotate("rect", xmin = 45, xmax = 100, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
+  annotate("rect", xmin = 100, xmax = 151, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
+  annotate("label", x = c(73, 126), y = Inf, label = c("NPI 1", "NPI 2"), 
+           hjust = 0.5, vjust = 1, size = 4.5, fontface = 2, family = "serif") + 
+  geom_line() + 
+  geom_vline(xintercept = 10, linetype = "dashed") + 
+  scale_x_continuous(expand = c(0.01, 0.01), breaks = seq(0, 150, 10)) + 
+  labs(title = "Simulx Cases", 
+       x = "Day", y = "Cases") +
+  theme_bw()  +
+  theme(plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12))
+
+p11
+
+p12 <- ggplot(data_SEIRAHD4 %>% filter(obs_id == 1), 
+             aes(x = day, y = obs*popsize/10^4, group = dept_id)) +  
+  annotate("rect", xmin = 45, xmax = 100, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
+  annotate("rect", xmin = 100, xmax = 151, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
+  annotate("label", x = c(73, 126), y = Inf, label = c("NPI 1", "NPI 2"), 
+           hjust = 0.5, vjust = 1, size = 4.5, fontface = 2, family = "serif") + 
+  geom_line() + 
+  geom_vline(xintercept = 10, linetype = "dashed") + 
+  scale_x_continuous(expand = c(0.01, 0.01), breaks = seq(0, 120, 10)) + 
+  labs(title = "Simulx Hospitalizations", 
+       x = "Day", y = "Hospital admissions") +
+  theme_bw()  +
+  theme(plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12))
+
+p12
+
+p11+p12
