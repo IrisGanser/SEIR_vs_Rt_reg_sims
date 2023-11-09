@@ -1,5 +1,5 @@
 EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, lag_days = 0, 
-                             meansi = 7.5, stdsi = 5, meanprior = 2, stdprior = 4){
+                             meansi = 7.5, stdsi = 5, meanprior = 2, stdprior = 4, cut_days = 0){
 
   
   Rt_list <- foreach(i = 1:94, .packages = c("tidyverse", "EpiEstim")) %dopar% {
@@ -34,7 +34,8 @@ EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, 
              BG1 = lag(BG1, n = lag_days, default = 0)) %>%
       ungroup() %>%
       unique() %>%
-      left_join(., Rt_df, by = c("dept_id", "day"))
+      left_join(., Rt_df, by = c("dept_id", "day")) %>%
+      filter(day > cut_days)
     
     reg_res <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data)
     
@@ -43,7 +44,8 @@ EpiEstim_reg_fun <- function(data_for_est, Inc_name, rep_num, lag_NPIs = FALSE, 
     reg_data <- data_for_est %>%
       dplyr::select(dept_id, day, lockdown1, BG1) %>%
       unique() %>%
-      left_join(., Rt_df, by = c("dept_id", "day"))
+      left_join(., Rt_df, by = c("dept_id", "day")) %>%
+      filter(day > cut_days)
     
     reg_res <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data)
     
