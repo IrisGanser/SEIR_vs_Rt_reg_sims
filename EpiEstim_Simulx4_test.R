@@ -238,6 +238,10 @@ reg_res_lag_Simulx4_m10_df <- do.call("rbind.data.frame", list_Rt_reg_lag_Simulx
 reg_res_lag_Simulx4_fits_m10_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_Simulx4_m10)
 
 
+reg_res_lag_Simulx4_df$lag[reg_res_lag_Simulx4_df$value == min(reg_res_lag_Simulx4_df$value) & 
+                             reg_res_lag_Simulx4_df$parameter == "NPI 1"]
+
+
 list_Rt_reg_lag_Simulx4_h <- list()
 list_Rt_reg_lag_fits_Simulx4_h <- list()
 list_Rt_reg_lag_Simulx4_h_m10 <- list()
@@ -278,6 +282,10 @@ reg_res_lag_Simulx4_h_df <- do.call("rbind.data.frame", list_Rt_reg_lag_Simulx4_
 reg_res_lag_Simulx4_h_fits_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_Simulx4_h)
 reg_res_lag_Simulx4_h_m10_df <- do.call("rbind.data.frame", list_Rt_reg_lag_Simulx4_h_m10)
 reg_res_lag_Simulx4_h_fits_m10_df <- do.call("rbind.data.frame", list_Rt_reg_lag_fits_Simulx4_h_m10)
+
+reg_res_lag_Simulx4_h_df$lag[reg_res_lag_Simulx4_h_df$value == min(reg_res_lag_Simulx4_h_df$value) & 
+                             reg_res_lag_Simulx4_h_df$parameter == "NPI 1"]
+
 
 stopCluster(cl)
 
