@@ -84,7 +84,7 @@ for(j in 1:100){
 
 save(sim_res_Simulx_2params_new4_list, file = "sim_res_Simulx_2params_new4_list.RData")
 
-### visualization
+### visualization ####
 for(j in 1:100){
   data <- read.table(paste0("data_sim_SEIRAHD_Simulx_2params_new4_ME", j, ".txt"), 
                      sep = ",", header = TRUE)
@@ -97,3 +97,26 @@ for(j in 1:100){
   print(plot)
 }
 
+
+#### shorten data sets ####
+for(j in 1:100){
+  data <- read.table(paste0("data_sim_SEIRAHD_Simulx_2params_new4_ME", j, ".txt"), 
+                     sep = ",", header = TRUE)
+  
+  data_short <- data %>%
+    filter(day > 29) %>%
+    mutate(day = day -29)
+  
+  write.table(data_short, file = paste0("data_sim_SEIRAHD_Simulx_2params_new4_short_ME", j, ".txt"), 
+              sep = ",", row.names = FALSE)
+  
+  
+  data_SEIR_short <- data_short %>%
+    filter(obs_id == 3) %>%
+    rename(IncI = obs) %>%
+    select(-c(obs_id, initH))
+  
+  write.table(data_SEIR_short, file = paste0("data_sim_SEIR_Simulx_2params_new4_short_ME", j, ".txt"), 
+              sep = ",", row.names = FALSE)
+  
+}
