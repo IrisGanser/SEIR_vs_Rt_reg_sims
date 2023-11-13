@@ -171,9 +171,47 @@ ggplot(fitted_df %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fi
   geom_line(aes(y = Rt, linetype = "EpiEstim Rt")) +
   labs(linetype = "") + 
   scale_linetype_manual(values = c("dotted", "solid", "dashed")) + 
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(0, 151)) + 
+  labs(y = expression(R[t]), title = "Simulx infections, no days cut off, no NPI lag") +
   facet_wrap(~dept_id) + 
   theme_bw()
 
+
+# first days cut off
+reg_data_m10 <- Rt_comp_res$Rt_comp %>%
+  mutate(lockdown1 = ifelse(between(day, 45, 99), 1, 0), 
+         BG1 = ifelse(day > 99, 1, 0)) %>%
+  filter(day > 13)
+
+reg_res_m10 <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data_m10)
+
+fitted_vals_m10 <- exp(fitted(reg_res_m10))
+fitted_df_m10 <- reg_data_m10 %>%
+  filter(day > 13) %>%
+  mutate(Rt_fitted = fitted_vals_m10)
+
+
+
+ggplot(fitted_df_m10 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
+  annotate("rect", xmin = 45, xmax = 100, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
+  annotate("rect", xmin = 100, xmax = 151, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
+  annotate("label", x = 75, y = Inf, label = "NPI 1", 
+           hjust = 0.5, vjust = 1, size = 4, fontface = 2, family = "serif") + 
+  annotate("label", x = 125, y = Inf, label =  "NPI 2", 
+           hjust = 0.5, vjust = 1, size = 4, fontface = 2, family = "serif") + 
+  geom_line(aes(linetype = "Regression fit Rt")) +
+  geom_line(aes(y = Rt_real, linetype = "Real Rt")) +
+  geom_line(aes(y = Rt, linetype = "EpiEstim Rt")) +
+  labs(linetype = "") + 
+  scale_linetype_manual(values = c("dotted", "solid", "dashed")) + 
+  scale_x_continuous(expand = c(0.01, 0.01), limits = c(0, 151)) + 
+  labs(y = expression(R[t]), title = "Simulx infections, first 10 days cut off, no NPI lag") +
+  facet_wrap(~dept_id) + 
+  theme_bw()
+
+
+
+# bias assessment
 bias_first_days <- fitted_df %>%
   group_by(dept_id) %>%
   filter(between(day, 8, 44)) %>%
