@@ -71,7 +71,7 @@ setdiff(full_list, sim_checklist_df) %>%
 
 
 
-# with censored observations
+# random mixing
 ABM7_rm_list <- list()
 sim_checklist <- list()
 
@@ -125,7 +125,7 @@ setdiff(full_list, sim_checklist_df) %>%
   print(n = Inf)
 
 
-        # summary
+# summary
 load("ABM7_hybrid_list.RData")
 load("ABM7_rm_list.RData")
 
@@ -174,25 +174,25 @@ for(j in 1:32){
   point_est_h <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_", j, "/populationParameters.txt"), 
                           header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
-    mutate(sim_rep = j, model = "ABM 6 hybrid old code") %>%
+    mutate(sim_rep = j, model = "ABM 7 hybrid old code") %>%
     rename(mean_est2 = value)
   
   point_est_h_nc <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_nc_", j, "/populationParameters.txt"), 
                             header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
-    mutate(sim_rep = j, model = "ABM 6 hybrid new code") %>%
+    mutate(sim_rep = j, model = "ABM 7 hybrid new code") %>%
     rename(mean_est2 = value)
   
   point_est_rm <- read.table(paste0(getwd(), "/ABM_rm7_pe_", j, "/populationParameters.txt"), 
                             header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
-    mutate(sim_rep = j, model = "ABM 6 rm old code") %>%
+    mutate(sim_rep = j, model = "ABM 7 rm old code") %>%
     rename(mean_est2 = value)
   
   point_est_rm_nc <- read.table(paste0(getwd(), "/ABM_rm7_pe_nc_", j, "/populationParameters.txt"), 
                             header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
-    mutate(sim_rep = j, model = "ABM 6 rm new code") %>%
+    mutate(sim_rep = j, model = "ABM 7 rm new code") %>%
     rename(mean_est2 = value)
   
   point_est_h_list[[j]] <- point_est_h
@@ -217,3 +217,45 @@ ggplot(comp_df_ABM7_nc, aes(x = sim_rep, y = mean_est2, col = model2)) +
   geom_line(aes(y = true_value), col = "darkred", linetype = "dashed") + 
   facet_wrap(~parameter) + 
   scale_color_brewer(palette = "Dark2")
+
+
+
+# long version
+point_est_h_long_list <- list()
+point_est_rm_long_list <- list()
+
+for(j in 1:100){
+  point_est_h_long <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_long_", j, "/populationParameters.txt"), 
+                            header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 7 hybrid long") %>%
+    rename(mean_est2 = value)
+
+  point_est_rm_long <- read.table(paste0(getwd(), "/ABM_rm7_pe_long_", j, "/populationParameters.txt"), 
+                             header = TRUE, sep = ",") %>%
+    popparam_cleaning() %>%
+    mutate(sim_rep = j, model = "ABM 7 rm long") %>%
+    rename(mean_est2 = value)
+
+
+  point_est_h_long_list[[j]] <- point_est_h_long
+  point_est_rm_long_list[[j]] <- point_est_rm_long
+}
+
+point_est_h_long_df <- do.call("rbind.data.frame", point_est_h_long_list)
+point_est_rm_long_df <- do.call("rbind.data.frame", point_est_rm_long_list)
+
+comp_df_ABM7_long <- bind_rows(point_est_h_df, point_est_h_long_df, point_est_rm_df, point_est_rm_long_df) %>%
+  mutate(version = ifelse(grepl("long", model), "long", "short"), 
+         model2 = ifelse(grepl("hybrid", model), "hybrid", "random mixing"), 
+         parameter = ifelse(grepl("ld", parameter), "NPI 1", "NPI 2"),
+         true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
+
+ggplot(comp_df_ABM7_long, aes(x = sim_rep, y = mean_est2, col = model2)) +
+  geom_point(aes(shape = version)) +
+  geom_line(aes(y = true_value), col = "darkred", linetype = "dashed") + 
+  facet_wrap(~parameter) + 
+  scale_color_brewer(palette = "Dark2")
+
+
+
