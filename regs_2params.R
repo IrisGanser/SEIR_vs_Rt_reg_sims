@@ -112,13 +112,13 @@ dir7 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_ABM7"
 reg_res_list_I_2params_all_ABM_rm7 <- vector(mode = "list")
 reg_res_list_I_2params_all_ABM_hybrid7 <- vector(mode = "list")
 
-cl <- makeCluster(6)
+cl <- makeCluster(10)
 registerDoParallel(cl)
 
 # random mixing
 for(j in 1:100){
   
-  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_rm7_long_", j, ".txt"), 
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_rm7_", j, ".txt"), 
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
@@ -137,7 +137,7 @@ save(reg_res_I_2params_all_ABM_rm7_df, file = "reg_res_I_2params_all_ABM_rm7_df.
 # hybrid
 for(j in 1:100){
   
-  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_hybrid7_long_", j, ".txt"), 
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_hybrid7_", j, ".txt"), 
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
