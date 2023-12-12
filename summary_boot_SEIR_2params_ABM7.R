@@ -170,7 +170,7 @@ point_est_h_nc_list <- list()
 point_est_rm_list <- list()
 point_est_rm_nc_list <- list()
 
-for(j in 1:32){
+for(j in 1:100){
   point_est_h <- read.table(paste0(getwd(), "/ABM_hybrid7_pe_", j, "/populationParameters.txt"), 
                           header = TRUE, sep = ",") %>%
     popparam_cleaning() %>%
@@ -240,13 +240,18 @@ for(j in 1:100){
 
   point_est_h_long_list[[j]] <- point_est_h_long
   point_est_rm_long_list[[j]] <- point_est_rm_long
+
 }
 
 point_est_h_long_df <- do.call("rbind.data.frame", point_est_h_long_list)
 point_est_rm_long_df <- do.call("rbind.data.frame", point_est_rm_long_list)
 
-comp_df_ABM7_long <- bind_rows(point_est_h_df, point_est_h_long_df, point_est_rm_df, point_est_rm_long_df) %>%
-  mutate(version = ifelse(grepl("long", model), "long", "short"), 
+
+comp_df_ABM7_long <- bind_rows(point_est_h_df, point_est_h_long_df, point_est_rm_df, point_est_rm_long_df, 
+                               point_est_rm_nc_df, point_est_h_nc_df) %>%
+  mutate(version = case_when(grepl("long", model) ~ "long old code",
+                             grepl("new", model) ~ "short new code", 
+                             TRUE ~ "short old code"), 
          model2 = ifelse(grepl("hybrid", model), "hybrid", "random mixing"), 
          parameter = ifelse(grepl("ld", parameter), "NPI 1", "NPI 2"),
          true_value = ifelse(parameter == "NPI 1", -1.45, -0.5))
