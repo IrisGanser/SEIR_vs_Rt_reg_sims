@@ -7,6 +7,7 @@ library(foreach)
 library(doParallel)
 
 
+
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/sim_2params_regs")
 source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.R")
 
@@ -111,17 +112,17 @@ dir7 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/boot_sim_2params_ABM7"
 reg_res_list_I_2params_all_ABM_rm7 <- vector(mode = "list")
 reg_res_list_I_2params_all_ABM_hybrid7 <- vector(mode = "list")
 
-cl <- makeCluster(10)
+cl <- makeCluster(6)
 registerDoParallel(cl)
 
 # random mixing
 for(j in 1:100){
   
-  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_rm7_", j, ".txt"), 
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_rm7_long_", j, ".txt"), 
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 8.2, stdsi = 5)
+                                meansi = 8.2, stdsi = 5, lag_NPIs = TRUE, lag_days = 5)
   
   
   reg_res_list_I_2params_all_ABM_rm7[[j]] <- res_all_I
@@ -136,11 +137,11 @@ save(reg_res_I_2params_all_ABM_rm7_df, file = "reg_res_I_2params_all_ABM_rm7_df.
 # hybrid
 for(j in 1:100){
   
-  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_hybrid7_", j, ".txt"), 
+  reg_data_all <- read.table(paste0(dir7, "/data_SEIR_covasim_hybrid7_long_", j, ".txt"), 
                              header = TRUE, sep = ",")
   
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
-                                meansi = 7.8, stdsi = 4.4)
+                                meansi = 7.8, stdsi = 4.4, lag_NPIs = TRUE, lag_days = 5)
   
   
   reg_res_list_I_2params_all_ABM_hybrid7[[j]] <- res_all_I
@@ -160,7 +161,7 @@ dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params
 reg_res_list_I_2params_all_Simulx <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx <- vector(mode = "list")
 
-cl <- makeCluster(6)
+cl <- makeCluster(8)
 registerDoParallel(cl)
 
 for(j in 1:100){
@@ -174,11 +175,12 @@ for(j in 1:100){
   
   # infections
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
+                                lag_NPIs = TRUE, lag_days = 5,
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
   
   # hospitalizations, lagged by 5 days (mean time from infection to hospitalization)
   res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j, 
-                                lag_NPIs = TRUE, lag_days = 5, 
+                                lag_NPIs = TRUE, lag_days = 10, 
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
   
   reg_res_list_I_2params_all_Simulx[[j]] <- res_all_I
@@ -196,13 +198,51 @@ save(reg_res_H_2params_all_Simulx_df, file = "reg_res_H_2params_all_Simulx_df.RD
 
 
 
+
+reg_res_list_I_2params_all_Simulx7.5 <- vector(mode = "list")
+reg_res_list_H_2params_all_Simulx7.5 <- vector(mode = "list")
+
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+for(j in 1:100){
+  
+  reg_data_all <- read.table(paste0(dir2, "/data_sim_SEIRAHD_Simulx_2params_new2_ME", j, ".txt"), 
+                             header = TRUE, sep = ",") %>%
+    pivot_wider(names_from = obs_id, values_from = obs, names_prefix = "obs_") %>%
+    rename(IncI = obs_3, IncH = obs_1) %>%
+    mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4)
+  
+  
+  # infections
+  res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j, 
+                                lag_NPIs = FALSE,
+                                meansi = 7.5, stdsi = 5, meanprior = 1, stdprior = 2)
+  
+  # hospitalizations, lagged by 5 days (mean time from infection to hospitalization)
+  res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j, 
+                                lag_NPIs = TRUE, lag_days = 5, 
+                                meansi = 7.5, stdsi = 5, meanprior = 1, stdprior = 2)
+  
+  reg_res_list_I_2params_all_Simulx7.5[[j]] <- res_all_I
+  reg_res_list_H_2params_all_Simulx7.5[[j]] <- res_all_H
+  
+}
+
+stopCluster(cl)
+
+reg_res_I_2params_all_Simulx_df7.5 <- do.call("rbind.data.frame", reg_res_list_I_2params_all_Simulx7.5)
+reg_res_H_2params_all_Simulx_df7.5 <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx7.5)
+
+save(reg_res_I_2params_all_Simulx_df7.5, file = "reg_res_I_2params_all_Simulx_df7.5.RData")
+save(reg_res_H_2params_all_Simulx_df7.5, file = "reg_res_H_2params_all_Simulx_df7.5.RData")
+
+
 #### Simulx SEIRAHD 3 models ####
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
 
 reg_res_list_I_2params_all_Simulx3 <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx3 <- vector(mode = "list")
-reg_res_list_H_2params_all_Simulx3_no_lag <- vector(mode = "list")
-
 cl <- makeCluster(6)
 registerDoParallel(cl)
 
@@ -217,20 +257,17 @@ for(j in 1:100){
   
   # infections
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 3,
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
 
   # hospitalizations, lagged by 5 days (mean time from infection to hospitalization)
   res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j,
-                                lag_NPIs = TRUE, lag_days = 5,
+                                lag_NPIs = TRUE, lag_days = 8,
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
-  
-  res_all_H_no_lag <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j, 
-                                lag_NPIs = TRUE, lag_days = 5, 
-                                meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
+
   
   reg_res_list_I_2params_all_Simulx3[[j]] <- res_all_I
   reg_res_list_H_2params_all_Simulx3[[j]] <- res_all_H
-  reg_res_list_H_2params_all_Simulx3_no_lag[[j]] <- res_all_H_no_lag
   
 }
 
@@ -238,11 +275,9 @@ stopCluster(cl)
 
 reg_res_I_2params_all_Simulx_df3 <- do.call("rbind.data.frame", reg_res_list_I_2params_all_Simulx3)
 reg_res_H_2params_all_Simulx_df3 <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx3)
-reg_res_H_2params_all_Simulx_df3_no_lag <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx3_no_lag)
 
 save(reg_res_I_2params_all_Simulx_df3, file = "reg_res_I_2params_all_Simulx_df3.RData")
 save(reg_res_H_2params_all_Simulx_df3, file = "reg_res_H_2params_all_Simulx_df3.RData")
-save(reg_res_H_2params_all_Simulx_df3_no_lag, file = "reg_res_H_2params_all_Simulx_df3_no_lag.RData")
 
 
 
@@ -251,8 +286,10 @@ dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params
 
 reg_res_list_I_2params_all_Simulx4 <- vector(mode = "list")
 reg_res_list_H_2params_all_Simulx4 <- vector(mode = "list")
+reg_res_list_I_2params_all_Simulx4_m10 <- vector(mode = "list")
+reg_res_list_H_2params_all_Simulx4_m10 <- vector(mode = "list")
 
-cl <- makeCluster(6)
+cl <- makeCluster(8)
 registerDoParallel(cl)
 
 for(j in 1:100){
@@ -264,18 +301,34 @@ for(j in 1:100){
     mutate(IncI = IncI*popsize/10^4, IncH = IncH*popsize/10^4)
   
   
-  # infections
+  # infections lagged by 3 days
   res_all_I <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncI", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 5,
+                                meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
+
+  # hospitalizations, lagged by 8 days (mean time from infection to hospitalization)
+  res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 10,
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
   
-  # hospitalizations, lagged by 5 days (mean time from infection to hospitalization)
-  res_all_H <- EpiEstim_reg_fun(data_for_est = reg_data_all, Inc_name = "IncH", rep_num = j,
-                                lag_NPIs = TRUE, lag_days = 5,
+  
+  # infections m10
+  res_all_I_m10 <- EpiEstim_reg_fun(data_for_est = reg_data_all, 
+                                Inc_name = "IncI", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 5, cut_days = 13,
+                                meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
+  
+  # hospitalizations m10
+  res_all_H_m10 <- EpiEstim_reg_fun(data_for_est = reg_data_all, 
+                                Inc_name = "IncH", rep_num = j,
+                                lag_NPIs = TRUE, lag_days = 10, cut_days = 13,
                                 meansi = 10.1, stdsi = 8.75, meanprior = 1, stdprior = 2)
   
   
   reg_res_list_I_2params_all_Simulx4[[j]] <- res_all_I
   reg_res_list_H_2params_all_Simulx4[[j]] <- res_all_H
+  reg_res_list_I_2params_all_Simulx4_m10[[j]] <- res_all_I_m10
+  reg_res_list_H_2params_all_Simulx4_m10[[j]] <- res_all_H_m10
   
 }
 
@@ -283,9 +336,12 @@ stopCluster(cl)
 
 reg_res_I_2params_all_Simulx_df4 <- do.call("rbind.data.frame", reg_res_list_I_2params_all_Simulx4)
 reg_res_H_2params_all_Simulx_df4 <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx4)
+reg_res_I_2params_all_Simulx_df4_m10 <- do.call("rbind.data.frame", reg_res_list_I_2params_all_Simulx4_m10)
+reg_res_H_2params_all_Simulx_df4_m10 <- do.call("rbind.data.frame", reg_res_list_H_2params_all_Simulx4_m10)
 
 save(reg_res_I_2params_all_Simulx_df4, file = "reg_res_I_2params_all_Simulx_df4.RData")
 save(reg_res_H_2params_all_Simulx_df4, file = "reg_res_H_2params_all_Simulx_df4.RData")
-
+save(reg_res_I_2params_all_Simulx_df4_m10, file = "reg_res_I_2params_all_Simulx_df4_m10.RData")
+save(reg_res_H_2params_all_Simulx_df4_m10, file = "reg_res_H_2params_all_Simulx_df4_m10.RData")
 
 
