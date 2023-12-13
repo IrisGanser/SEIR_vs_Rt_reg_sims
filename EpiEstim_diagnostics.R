@@ -10,6 +10,7 @@ library(magrittr)
 library(RColorBrewer)
 library(ggridges)
 library(kableExtra)
+library(ggside)
 
 setwd("~/PhD/COVID_France/SEIR_vs_Rt_sims/Rt_trajectories")
 source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/deSolve_SIR_model_function.R")
@@ -55,7 +56,7 @@ dataset1_Simulx_new4 <- data_list_Simulx_new4[[1]] %>%
   left_join(indparams_Simulx4_1, by = "id") %>%
   mutate(Rt = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
          IncI_unscaled = IncI*popsize/10^4, 
-         IncH_unscaled = IncH*popsize/10^4,
+         IncH_unscaled = IncH*popsize/10^4, 
          lockdown1 = ifelse(between(time, 45, 99), 1, 0), 
          BG1 = ifelse(time > 99, 1, 0)) %>% 
   rename(dept_id = id, day = time)
@@ -158,7 +159,8 @@ for(i in 1:length(reg_models_list)){
 }
 
 reg_fits_all <- do.call("bind_rows", fit_data_list) %>%
-  mutate(dept_id2 = paste("Region", as.character(dept_id)))
+  mutate(dept_id2 = paste("Region", as.character(dept_id)), 
+         IncI_unscaled = ifelse(is.na(IncI_unscaled), IncI, IncI_unscaled))
 
 
 ggplot(reg_fits_all %>% filter(dept_id %in% c(selected_depts[1:4])), 
@@ -174,6 +176,38 @@ ggplot(reg_fits_all %>% filter(dept_id %in% c(selected_depts[1:4])),
        title = expression("Fits from regression with known"~ R[t])) +
   theme(legend.text = element_text(hjust = 0))
 
+
+ggplot(reg_fits_all %>% filter(dept_id %in% selected_depts[1:4] & !grepl("long", model)), 
+       aes(x = day, y = Rt)) + 
+  geom_line(aes(col = "Real Rt")) + 
+  geom_line(aes(y = fitted_Rt, col = "Fitted Rt")) + 
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y") + 
+  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 3)) + 
+  facet_grid(rows = vars(model), cols = vars(dept_id2)) +
+  scale_color_brewer(palette = "Set1", 
+                     labels = c(expression("Fitted" ~R[t]), expression("Real" ~R[t]))) + 
+  theme_bw() + 
+  labs(y = expression(R[t]), col = "",
+       title = expression("Fits from regression with known"~ R[t])) +
+  theme(legend.text = element_text(hjust = 0), 
+        ggside.panel.scale.x = .3)
+
+
+
+ggplot(reg_fits_all %>% filter(dept_id %in% selected_depts[1] & model == "SEIRAHD"), 
+       aes(x = day, y = Rt)) + 
+  geom_line(aes(col = "Real Rt")) + 
+  geom_line(aes(y = fitted_Rt, col = "Fitted Rt")) + 
+  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  scale_color_brewer(palette = "Set1", 
+                     labels = c(expression("Fitted" ~R[t]), expression("Real" ~R[t]))) + 
+  theme_bw() + 
+  labs(y = expression(R[t]), col = "",
+       title = expression("Fits from regression with known"~ R[t])) +
+  theme(legend.text = element_text(hjust = 0))
 
 # bias table
 metric_table_reg_Rt_known <- reg_Rt_known_comp %>%
@@ -203,30 +237,33 @@ metric_table_reg_Rt_known %>%
 
 
 # Fits EpiEstim + reg -----------------------------------------------------
-start_days2 <- 2:119
-end_days2 <- 4:121
 
-start_days4 <- 2:148
-end_days4 <- 4:150
+
+## Rt estimation -----------------------------------------------------------
 
 cl <- makeCluster(10)
 registerDoParallel(cl)
 
 Rt_comp_res2 <- Rt_calc_fun(Inc_df = dataset1_Simulx_new2, id_col_name = "dept_id", time_col_name = "day", 
                             Inc_col_name = "IncI_unscaled", model_name = "lag 0", 
-                            Rt_ref_df = true_Rt_df_Simulx_new2, tstart = start_days2, tend = end_days2,
+                            Rt_ref_df = true_Rt_df_Simulx_new2,
                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
 
 Rt_comp_res4 <- Rt_calc_fun(Inc_df = dataset1_Simulx_new4, id_col_name = "dept_id", time_col_name = "day", 
                             Inc_col_name = "IncI_unscaled", model_name = "lag 0", 
-                            Rt_ref_df = true_Rt_df_Simulx_new4, tstart = start_days4, tend = end_days4, 
+                            Rt_ref_df = true_Rt_df_Simulx_new4,
                             meansi = 10.1, stdsi = 8.75, Rt_prior = 1)
 stopCluster(cl)
+
+
+## Regressions -------------------------------------------------------------
+# all with NPIs lagged by 5 days
 
 # summary SEIRAHD 2 dataset
 reg_data2 <- Rt_comp_res2$Rt_comp %>%
   mutate(lockdown1 = ifelse(between(day, 16, 70), 1, 0), 
          BG1 = ifelse(day > 70, 1, 0)) %>%
+  mutate(across(lockdown1:BG1, function(x) lag(x, 5, default = 0))) %>%
   filter(!is.na(Rt))
 
 reg_res2 <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data2)
@@ -236,10 +273,14 @@ fitted_df2 <- reg_data2 %>%
   filter(!is.na(Rt)) %>%
   mutate(Rt_fitted = fitted_vals2)
 
+dataset1_Simulx_new2_fitted <- dataset1_Simulx_new2 %>%
+  left_join(fitted_df2 %>% rename(Rt_EE = Rt), by = c("dept_id", "day"))
+
 # summary SEIRAHD 4 dataset
 reg_data4 <- Rt_comp_res4$Rt_comp %>%
   mutate(lockdown1 = ifelse(between(day, 45, 99), 1, 0), 
-         BG1 = ifelse(day > 99, 1, 0)) %>%
+         BG1 = ifelse(day > 99, 1, 0))  %>%
+  mutate(across(lockdown1:BG1, function(x) lag(x, 5, default = 0))) %>%
   filter(!is.na(Rt))
 
 reg_res4 <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data4)
@@ -249,11 +290,14 @@ fitted_df4 <- reg_data4 %>%
   filter(!is.na(Rt)) %>%
   mutate(Rt_fitted = fitted_vals4)
 
+dataset1_Simulx_new4_fitted <- dataset1_Simulx_new4 %>%
+  left_join(fitted_df4 %>% rename(Rt_EE = Rt), by = c("dept_id", "day"))
 
 # summary SEIRAHD 4 dataset with first days cut off
 reg_data_m10 <- Rt_comp_res4$Rt_comp %>%
   mutate(lockdown1 = ifelse(between(day, 45, 99), 1, 0), 
          BG1 = ifelse(day > 99, 1, 0)) %>%
+  mutate(across(lockdown1:BG1, function(x) lag(x, 5, default = 0)))  %>%
   filter(day > 13)
 
 reg_res_m10 <- lmer(log(Rt) ~ lockdown1 + BG1 + (1|dept_id), data = reg_data_m10)
@@ -263,10 +307,17 @@ fitted_df_m10 <- reg_data_m10 %>%
   filter(day > 13) %>%
   mutate(Rt_fitted = fitted_vals_m10)
 
+dataset1_Simulx_new4_m10_fitted <- dataset1_Simulx_new4 %>%
+  left_join(fitted_df_m10 %>% rename(Rt_EE = Rt), by = c("dept_id", "day"))
+
+
+
+## plots regression fits ---------------------------------------------------
 
 rect_cols <- sequential_hcl(5, palette = "BluYl")
 
-ggplot(fitted_df2 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
+ggplot(dataset1_Simulx_new2_fitted %>% filter(dept_id %in% selected_depts), 
+       aes(x = day, y = Rt_fitted)) + 
   annotate("rect", xmin = 16, xmax = 71, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
   annotate("rect", xmin = 71, xmax = 121, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
   annotate("label", x = 43, y = Inf, label = "NPI 1", 
@@ -274,16 +325,20 @@ ggplot(fitted_df2 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_f
   annotate("label", x = 96, y = Inf, label =  "NPI 2", 
            hjust = 0.5, vjust = 1, size = 4, fontface = 2, family = "serif") + 
   geom_line(aes(linetype = "Regression fit Rt")) +
-  geom_line(aes(y = Rt_real, linetype = "Real Rt")) +
-  geom_line(aes(y = Rt, linetype = "EpiEstim Rt")) +
+  geom_line(aes(y = Rt, linetype = "Real Rt")) +
+  geom_line(aes(y = Rt_EE, linetype = "EpiEstim Rt")) +
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4))+ 
   labs(linetype = "") + 
   scale_linetype_manual(values = c("dotted", "solid", "dashed")) + 
   scale_x_continuous(expand = c(0.01, 0.01), limits = c(0, 121)) + 
   labs(y = expression(R[t]), title = "Simulx infections, short NPI-free period, no days cut off, no NPI lag") +
   facet_wrap(~dept_id) + 
-  theme_bw()
+  theme_bw() + 
+  theme(ggside.panel.scale.x = .3)
 
-ggplot(fitted_df4 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
+ggplot(dataset1_Simulx_new4_fitted %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
   annotate("rect", xmin = 45, xmax = 100, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
   annotate("rect", xmin = 100, xmax = 151, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
   annotate("label", x = 75, y = Inf, label = "NPI 1", 
@@ -291,17 +346,21 @@ ggplot(fitted_df4 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_f
   annotate("label", x = 125, y = Inf, label =  "NPI 2", 
            hjust = 0.5, vjust = 1, size = 4, fontface = 2, family = "serif") + 
   geom_line(aes(linetype = "Regression fit Rt")) +
-  geom_line(aes(y = Rt_real, linetype = "Real Rt")) +
-  geom_line(aes(y = Rt, linetype = "EpiEstim Rt")) +
+  geom_line(aes(y = Rt, linetype = "Real Rt")) +
+  geom_line(aes(y = Rt_EE, linetype = "EpiEstim Rt")) +
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4))+ 
   labs(linetype = "") + 
   scale_linetype_manual(values = c("dotted", "solid", "dashed")) + 
   scale_x_continuous(expand = c(0.01, 0.01), limits = c(0, 151)) + 
   labs(y = expression(R[t]), title = "Simulx infections, long NPI-free period, no days cut off, no NPI lag") +
   facet_wrap(~dept_id) + 
-  theme_bw()
+  theme_bw() + 
+  theme(ggside.panel.scale.x = .3)
 
 
-ggplot(fitted_df_m10 %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
+ggplot(dataset1_Simulx_new4_m10_fitted %>% filter(dept_id %in% selected_depts), aes(x = day, y = Rt_fitted)) + 
   annotate("rect", xmin = 45, xmax = 100, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[3]) +
   annotate("rect", xmin = 100, xmax = 151, ymin = -Inf, ymax = Inf, alpha = 0.2, fill = rect_cols[4]) +
   annotate("label", x = 75, y = Inf, label = "NPI 1", 
@@ -309,17 +368,22 @@ ggplot(fitted_df_m10 %>% filter(dept_id %in% selected_depts), aes(x = day, y = R
   annotate("label", x = 125, y = Inf, label =  "NPI 2", 
            hjust = 0.5, vjust = 1, size = 4, fontface = 2, family = "serif") + 
   geom_line(aes(linetype = "Regression fit Rt")) +
-  geom_line(aes(y = Rt_real, linetype = "Real Rt")) +
-  geom_line(aes(y = Rt, linetype = "EpiEstim Rt")) +
+  geom_line(aes(y = Rt, linetype = "Real Rt")) +
+  geom_line(aes(y = Rt_EE, linetype = "EpiEstim Rt")) +
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4))+ 
   labs(linetype = "") + 
   scale_linetype_manual(values = c("dotted", "solid", "dashed")) + 
   scale_x_continuous(expand = c(0.01, 0.01), limits = c(0, 151)) + 
   labs(y = expression(R[t]), title = "Simulx infections, long NPI-free period, first 10 days cut off, no NPI lag") +
   facet_wrap(~dept_id) + 
-  theme_bw()
+  theme_bw() + 
+  theme(ggside.panel.scale.x = .3)
 
 
-# bias assessment
+
+## bias assessment  --------------------------------------------------------
 bias_first_days2 <- fitted_df2 %>%
   group_by(dept_id) %>%
   filter(between(day, 8, 15)) %>%
@@ -343,3 +407,47 @@ bias_first_days <- bias_first_days2 %>% mutate(model = "short") %>%
 ggplot(bias_first_days, aes(x = as.factor(dept_id), y = bias, fill = model)) + 
   geom_col(position = position_dodge(width = 0.8)) +
   scale_fill_brewer(palette = "Dark2")
+
+
+
+## regression coefficients -------------------------------------------------
+list_reg_res <- list(reg_res2, reg_res4, reg_res_m10)
+model_names <- c("Simulx 2", "Simulx 4", "Simulx 4 m10")
+
+reg_res_all <- list()
+for(i in 1:3){
+  coefs_Rt_reg <- coefficients(list_reg_res[[i]])$dept_id
+  
+  confint_Rt_reg <- data.frame(confint(list_reg_res[[i]], method="Wald"))[-c(1:2), ]
+  names(confint_Rt_reg) <- c("CI_LL", "CI_UL")
+  
+  
+  coefs_Rt_reg <- coefs_Rt_reg %>%
+    dplyr::select(-1) %>%
+    unique() %>%
+    pivot_longer(cols = everything(), names_to = "parameter", values_to = "value") %>%
+    cbind(confint_Rt_reg[-1,]) %>%
+    mutate(parameter = factor(parameter,
+                              levels = c("lockdown1", "BG1"),
+                              labels = c("NPI 1", "NPI 2"))) 
+  
+  reg_res_all[[i]] <- coefs_Rt_reg %>%
+    mutate(model = model_names[i])
+}
+
+reg_res_df <- do.call("rbind.data.frame", reg_res_all)
+
+
+ggplot(reg_res_df, aes(x = 1, y = value, ymin = CI_LL, ymax = CI_UL, col = model)) + 
+  geom_pointrange(position = position_dodge(width = 1))  +
+  geom_hline(data = data.frame(yval = -1.45, parameter = "NPI 1"), aes(yintercept = yval),
+             linetype = "dashed", col = "black", linewidth = 0.8) +
+  geom_hline(data = data.frame(yval = -0.5, parameter = "NPI 2"), aes(yintercept = yval),
+             linetype = "dashed", col = "black", linewidth = 0.8) + 
+  facet_wrap(~parameter) +
+  labs(x = "", y = "coefficient value", 
+       title = "Regression estimates") + 
+  scale_color_brewer(palette = "Dark2") +
+  theme_bw() + 
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank()) 
