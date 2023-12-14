@@ -34,11 +34,11 @@ popsize_df <- read.csv(paste(dir1, "popsize_df.csv", sep = "/")) %>%
 ld1_start <- c(20, 30, 40, 50, 60)
 
 for(i in 1:length(ld1_start)){
-  ld1_reg_df <- data.frame(id = rep(1:94, each = 121), 
-                           time = rep(1:121, 94), 
-                           initH = rep(init_list[[1]]$H, each = 121)) %>%
-    mutate(lockdown1 = ifelse(between(time, ld1_start[i], 70), 1, 0),
-           BG1 = ifelse(time > 70, 1, 0), 
+  ld1_reg_df <- data.frame(id = rep(1:94, each = 151), 
+                           time = rep(1:151, 94), 
+                           initH = rep(init_list[[1]]$H, each = 151)) %>%
+    mutate(lockdown1 = ifelse(between(time, ld1_start[i], 50 + ld1_start[i]), 1, 0),
+           BG1 = ifelse(time > 50 + ld1_start[i], 1, 0), 
            popsize = 10000)
   
   write.csv(ld1_reg_df, paste0("ld1_reg_df_2params_late", i, ".csv"), row.names = F) 
@@ -74,12 +74,30 @@ sim_res_ld1_start <- list()
 for(j in 1:length(ld1_start)){
   
   sim_res <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params_lowb1.txt"), 
-                                           regressor_df_path = paste0("ld1_reg_df_2params_late", j, ".csv"))
+                                           regressor_df_path = paste0("ld1_reg_df_2params_late", j, ".csv"), 
+                                           tmax = 151)
   
   sim_res_ld1_start[[j]] <- sim_res
   
-  monolix_SEIRAHD <- monolix_data_creation_ME(simulation_results = sim_res,
-                                              popsize_df = popsize_df)
+  data_for_sim <- read.csv(paste0("ld1_reg_df_2params_late", j, ".csv"))
+  
+  monolix_SEIRAHD <- data_for_sim %>%
+    left_join(., sim_res %>% 
+                select(id, time, IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+              by = c("id", "time")) %>%
+    rename(dept_id = id, day = time) %>% 
+    group_by(dept_id) %>%
+    mutate(initH = PrevH_ME[day == 1], .before = lockdown1) %>%
+    ungroup() %>%
+    pivot_longer(c(IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+                 names_to = "obs_id", values_to = "obs") %>%
+    mutate(obs_id = case_when(obs_id == "IncH_ME" ~ 1, 
+                              obs_id == "PrevH_ME" ~ 2,
+                              obs_id == "IncI_ME" ~ 3, 
+                              obs_id == "IncD_ME" ~ 4)) %>%
+    relocate(obs, .after = day) %>%
+    relocate(obs_id, .after = obs) %>%
+    mutate(obs = ifelse(obs < 0, 0, obs)) # correct data in case some observations are < 0
   
   write.table(monolix_SEIRAHD, file = paste0("data_sim_SEIRAHD_2params_ld1_start", ld1_start[j], ".txt"), 
               row.names = FALSE, sep = ",")
@@ -115,12 +133,31 @@ sim_res_ld1_strength <- list()
 for(j in 1:length(ld1_strength)){
   
   sim_res <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params", ld1_strength[j], ".txt"), 
-                                           regressor_df_path = "ld1_reg_df_2params_late1.csv")
+                                           regressor_df_path = "ld1_reg_df_2params_late1.csv", 
+                                           tmax = 151)
   
   sim_res_ld1_strength[[j]] <- sim_res
   
-  monolix_SEIRAHD <- monolix_data_creation_ME(simulation_results = sim_res,
-                                              popsize_df = popsize_df)
+  
+  data_for_sim <- read.csv("ld1_reg_df_2params_late1.csv")
+  
+  monolix_SEIRAHD <- data_for_sim %>%
+    left_join(., sim_res %>% 
+                select(id, time, IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+              by = c("id", "time")) %>%
+    rename(dept_id = id, day = time) %>% 
+    group_by(dept_id) %>%
+    mutate(initH = PrevH_ME[day == 1], .before = lockdown1) %>%
+    ungroup() %>%
+    pivot_longer(c(IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+                 names_to = "obs_id", values_to = "obs") %>%
+    mutate(obs_id = case_when(obs_id == "IncH_ME" ~ 1, 
+                              obs_id == "PrevH_ME" ~ 2,
+                              obs_id == "IncI_ME" ~ 3, 
+                              obs_id == "IncD_ME" ~ 4)) %>%
+    relocate(obs, .after = day) %>%
+    relocate(obs_id, .after = obs) %>%
+    mutate(obs = ifelse(obs < 0, 0, obs)) # correct data in case some observations are < 0
   
   write.table(monolix_SEIRAHD, file = paste0("data_sim_SEIRAHD_2params_ld1_strength", ld1_strength[j], ".txt"), 
               row.names = FALSE, sep = ",")
@@ -149,19 +186,37 @@ for(j in 1:length(ld1_strength)){
 }
 
 
-# higher population immunity
-# this is done by simulating data for a longer time period and then taking later values only
+# higher basic transmission
 sim_res_ld1_start_high <- list()
 
 for(j in 1:length(ld1_start)){
   
   sim_res <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = "ind_params.txt", 
-                                           regressor_df_path = paste0("ld1_reg_df_2params_late", j, ".csv"))
+                                           regressor_df_path = paste0("ld1_reg_df_2params_late", j, ".csv"), 
+                                           tmax = 151)
   
   sim_res_ld1_start_high[[j]] <- sim_res
   
-  monolix_SEIRAHD <- monolix_data_creation_ME(simulation_results = sim_res,
-                                              popsize_df = popsize_df)
+  data_for_sim <- read.csv(paste0("ld1_reg_df_2params_late", j, ".csv"))
+  
+  monolix_SEIRAHD <- data_for_sim %>%
+    left_join(., sim_res %>% 
+                select(id, time, IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+              by = c("id", "time")) %>%
+    rename(dept_id = id, day = time) %>% 
+    group_by(dept_id) %>%
+    mutate(initH = PrevH_ME[day == 1], .before = lockdown1) %>%
+    ungroup() %>%
+    pivot_longer(c(IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+                 names_to = "obs_id", values_to = "obs") %>%
+    mutate(obs_id = case_when(obs_id == "IncH_ME" ~ 1, 
+                              obs_id == "PrevH_ME" ~ 2,
+                              obs_id == "IncI_ME" ~ 3, 
+                              obs_id == "IncD_ME" ~ 4)) %>%
+    relocate(obs, .after = day) %>%
+    relocate(obs_id, .after = obs) %>%
+    mutate(obs = ifelse(obs < 0, 0, obs)) # correct data in case some observations are < 0
+  
   
   write.table(monolix_SEIRAHD, file = paste0("data_sim_SEIRAHD_2params_ld1_start_high_", ld1_start[j], ".txt"), 
               row.names = FALSE, sep = ",")
