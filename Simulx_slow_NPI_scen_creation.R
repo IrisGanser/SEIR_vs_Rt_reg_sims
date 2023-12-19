@@ -70,11 +70,11 @@ list_reg_files_slow_NPI <- list(ld1_reg_1week_slow, ld1_reg_2week_slow,
 
 
 
-#### Simulx data simulation ####
+
 project.file <- paste(dir1, "sim_SEIRAHD_2params_init_est.mlxtran", sep = "/")
 importMonolixProject(project.file)
 
-
+# Simulx 2 ----------------------------------------------------------------
 
 
 sim_res_1week_slow <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params.txt"), 
@@ -139,3 +139,73 @@ for(j in 1:4){
   
   print(plot)
 }
+
+
+
+
+# Simulx 3 ----------------------------------------------------------------
+
+sim_res3_1week_slow <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params3.txt"), 
+                                                    regressor_df_path = "ld1_reg_1week_slow.csv")
+sim_res3_2week_slow <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params3.txt"), 
+                                                    regressor_df_path = "ld1_reg_2week_slow.csv")
+
+sim_res3_1week_slow_late <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params3.txt"), 
+                                                         regressor_df_path = "ld1_reg_1week_slow_late.csv")
+sim_res3_2week_slow_late <- sim_SEIRAHD_Simulx_ME_2params(path_to_ind_params = paste0(getwd(), "/ind_params3.txt"), 
+                                                         regressor_df_path = "ld1_reg_2week_slow_late.csv")
+
+sim_res3_slow_NPI <- list(sim_res3_1week_slow, sim_res3_2week_slow, 
+                         sim_res3_1week_slow_late, sim_res3_2week_slow_late)
+
+sim_res3_slow_names <- c("1week_slow", "2week_slow", "1week_slow_late", "2week_slow_late")
+
+for(j in 1:4){
+  monolix_SEIRAHD <- sim_res3_slow_NPI[[j]] %>%
+    left_join(list_reg_files_slow_NPI[[j]] %>% select(id, time, lockdown1, BG1), 
+              by = c("id", "time")) %>%
+    rename(dept_id = id, day = time) %>%
+    left_join(popsize_df, by = "dept_id") %>%
+    group_by(dept_id) %>%
+    mutate(initH = PrevH_ME[day == 1]) %>%
+    ungroup() %>%
+    select(dept_id, day, IncI_ME, IncH_ME, PrevH_ME, IncD_ME, initH, lockdown1, BG1) %>%
+    pivot_longer(c(IncI_ME, IncH_ME, PrevH_ME, IncD_ME), 
+                 names_to = "obs_id", values_to = "obs") %>%
+    mutate(obs_id = case_when(obs_id == "IncH_ME" ~ 1, 
+                              obs_id == "PrevH_ME" ~ 2,
+                              obs_id == "IncI_ME" ~ 3, 
+                              obs_id == "IncD_ME" ~ 4)) %>%
+    relocate(obs, .after = day) %>%
+    relocate(obs_id, .after = obs) %>%
+    mutate(obs = ifelse(obs < 0, 0, obs))
+  
+  
+  write.table(monolix_SEIRAHD, file = paste0("data_sim_SEIRAHD_Simulx3_2params_", sim_res3_slow_names[j], ".txt"), 
+              row.names = FALSE, sep = ",")
+  
+  monolix_SEIR <- monolix_SEIRAHD %>%
+    filter(obs_id == 3) %>%
+    rename(IncI = obs) %>%
+    select(-c(obs_id, initH))
+  
+  write.table(monolix_SEIR, file = paste0("data_sim_SEIR_Simulx3_2params_", sim_res3_slow_names[j], ".txt"), 
+              sep = ",", row.names = FALSE)
+}
+
+save(sim_res3_slow_NPI, file = "sim_res3_slow_NPI.RData")
+
+
+for(j in 1:4){
+  data <- read.table(paste0("data_sim_SEIR_Simulx3_2params_", sim_res3_slow_names[j], ".txt"), 
+                     sep = ",", header = TRUE)
+  
+  plot <- ggplot(data, aes(x = day, y = IncI, group = dept_id)) + 
+    geom_line() +
+    labs(title = paste("Sim ", sim_res3_slow_names[j]))
+  
+  
+  print(plot)
+}
+
+
