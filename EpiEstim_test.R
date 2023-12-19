@@ -15,13 +15,16 @@ source("~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIR_vs_Rt_reg_sims/useful_functions.
 
 
 dir2 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/SEIRAHD_Simulx_data_creation_2params"
-dir3 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once4"
 
 popsize_df <- read.csv(paste0(dir2, "/popsize_df.csv")) %>%
   mutate(dept_id = ifelse(dept_id > 20, dept_id-1, dept_id))
 
 load(paste0(dir2, "/ind_param_list.RData"))
 
+
+
+
+# Simulx 2 ----------------------------------------------------------------
 
 #### load data and calculate Rt ####
 data_list_Simulx <- loadRData(paste(dir2, "sim_res_Simulx_all_list2.RData", sep = "/"))
@@ -59,7 +62,7 @@ ggplot(data_ABM_hybrid_cov, aes(x = day, y = Rt, group = dept_id)) +
 
 
 #### 2 step reg ####
-cl <- makeCluster(6)
+cl <- makeCluster(10)
 registerDoParallel(cl)
 
 res_reg_Simulx_I <- EpiEstim_reg_fun(data_for_est = dataset1_Simulx, 
@@ -116,7 +119,7 @@ ggplot(reg_res_df, aes(x = 1, y = value, ymin = CI_LL, ymax = CI_UL, col = model
 
 
 #### only EpiEstim ####
-cl <- makeCluster(6)
+cl <- makeCluster(10)
 registerDoParallel(cl)
 
 res_EpiEstim_Simulx_I <- EpiEstim_only_fun(data_for_est = dataset1_Simulx, 
@@ -295,4 +298,154 @@ ggplot(reg_fits_all %>% filter(dept_id %in% c(1, 4, 9, 13)),
 
 save(reg_Rt_known_comp, metric_table_reg_Rt_known, reg_fits_all,
      file = "res_reg_Rt_known.RData")
+
+
+
+
+# Simulx 3 ----------------------------------------------------------------
+dir10 <- "~/PhD/COVID_France/SEIR_vs_Rt_sims/ABM_2params_all_at_once10"
+
+#### load data and calculate Rt ####
+data_list_Simulx3 <- loadRData(paste(dir2, "sim_res_Simulx_2params_new3_list.RData", sep = "/"))
+
+dataset1_Simulx3 <- data_list_Simulx3[[1]] %>%
+  left_join(popsize_df, by = c("id" = "dept_id")) %>%
+  left_join(ind_param_list[[1]], by = "id") %>%
+  mutate(beta_BG1 = -0.8, 
+         Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
+         IncI_unscaled = round(IncI*popsize/10^4), 
+         IncH_unscaled = round(IncH*popsize/10^4), 
+         lockdown1 = ifelse(between(time, 16, 70), 1, 0), 
+         BG1 = ifelse(time > 70, 1, 0)) %>% 
+  rename(dept_id = id, day = time)
+
+ggplot(dataset1_Simulx3, aes(x = day, y = Rt_SEIRAHD, group = dept_id)) + 
+  geom_line() +
+  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  labs(title = "Rt from SEIRAHD model 3", y = "Rt") + 
+  theme_bw()
+
+
+data_ABM_rm_cov <- read.csv(paste0(dir10, "/data_covasim_rm10_Rt_1.csv")) %>%
+  filter(day > 29) %>%
+  mutate(day = day - 29)
+data_ABM_hybrid_cov <- read.csv(paste0(dir10, "/data_covasim_hybrid10_Rt_1.csv")) %>%
+  filter(day > 29) %>%
+  mutate(day = day - 29)
+
+#### 2 step reg ####
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+res_reg_Simulx_I3 <- EpiEstim_reg_fun(data_for_est = dataset1_Simulx3, 
+                                     Inc_name = "IncI_unscaled", 
+                                     rep_num = 1, 
+                                     lag_NPIs = TRUE, lag_days = 5, 
+                                     meansi = 10.1, stdsi = 8.75)
+
+res_reg_Simulx_H3 <- EpiEstim_reg_fun(data_for_est = dataset1_Simulx3, 
+                                     Inc_name = "IncI_unscaled", 
+                                     rep_num = 1, 
+                                     lag_NPIs = TRUE, lag_days = 10, 
+                                     meansi = 10.1, stdsi = 8.75)
+
+res_reg_cov_rm10 <- EpiEstim_reg_fun(data_for_est = data_ABM_rm_cov, 
+                                     Inc_name = "IncI", 
+                                     rep_num = 1, 
+                                     lag_NPIs = TRUE, lag_days = 5, 
+                                     meansi = 7.8, stdsi = 4.4)
+
+res_reg_cov_hybrid10 <- EpiEstim_reg_fun(data_for_est = data_ABM_hybrid_cov, 
+                                      Inc_name = "IncI", 
+                                      rep_num = 1, 
+                                      lag_NPIs = TRUE, lag_days = 5, 
+                                      meansi = 7.8, stdsi = 4.4)
+
+stopCluster(cl)
+
+reg_res_df <- bind_rows(res_reg_Simulx_I3 %>% mutate(model = "Simulx IncI"), 
+                        res_reg_Simulx_H3 %>% mutate(model = "Simulx IncH"), 
+                        res_reg_cov_rm10 %>% mutate(model = "ABM rm"), 
+                        res_reg_cov_hybrid10 %>% mutate(model = "ABM hybrid")) %>%
+  mutate(parameter = factor(parameter, 
+                            levels = c("Lockdown 1", "Barrier gestures"),
+                            labels = c("NPI 1", "NPI 2")),
+         true_value = ifelse(parameter == "NPI 1", -1.45, -0.8))
+
+
+br_palette <- diverging_hcl("Blue-Red", n = 20)
+pg_palette <- diverging_hcl("Purple-Green", n = 20)
+plot_cols <- c(pg_palette[c(18, 14)], br_palette[c(1, 5)])
+
+ggplot(reg_res_df, aes(x = 1, y = value, ymin = CI_LL, ymax = CI_UL, col = model)) + 
+  geom_pointrange(position = position_dodge(width = 1))  +
+  geom_hline(data = data.frame(yval = -1.45, parameter = "NPI 1"), aes(yintercept = yval),
+             linetype = "dashed", col = "black", linewidth = 0.8) +
+  geom_hline(data = data.frame(yval = -0.8, parameter = "NPI 2"), aes(yintercept = yval),
+             linetype = "dashed", col = "black", linewidth = 0.8) + 
+  facet_wrap(~parameter) +
+  labs(x = "", y = "coefficient value", 
+       title = "Regression estimates") + 
+  scale_color_manual(values = plot_cols) +
+  theme_bw() + 
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank()) 
+
+
+
+#### only EpiEstim ####
+cl <- makeCluster(6)
+registerDoParallel(cl)
+
+res_EpiEstim_Simulx_I3 <- EpiEstim_only_fun(data_for_est = dataset1_Simulx3, 
+                                           Inc_name = "IncI_unscaled", 
+                                           meansi = 10.1, stdsi = 8.75)
+
+res_EpiEstim_Simulx_H3 <- EpiEstim_only_fun(data_for_est = dataset1_Simulx3, 
+                                           Inc_name = "IncI_unscaled", 
+                                           meansi = 10.1, stdsi = 8.75)
+
+res_EpiEstim_ABM_rm10 <- EpiEstim_only_fun(data_for_est = data_ABM_rm_cov, 
+                                         Inc_name = "IncI", 
+                                         meansi = 7.8, stdsi = 4.4)
+
+res_EpiEstim_ABM_hybrid10 <- EpiEstim_only_fun(data_for_est = data_ABM_hybrid_cov, 
+                                             Inc_name = "IncI", 
+                                             meansi = 7.8, stdsi = 4.4)
+stopCluster(cl)
+
+Rt_comp_df <- bind_rows(res_EpiEstim_Simulx_I3 %>%
+                          left_join(dataset1_Simulx3 %>% rename(Rt_real = Rt_SEIRAHD), 
+                                    by = c("dept_id", "day")) %>%
+                          mutate(model = "Simulx IncI"), 
+                        res_EpiEstim_Simulx_H3 %>%
+                          left_join(dataset1_Simulx3 %>% rename(Rt_real = Rt_SEIRAHD), 
+                                    by = c("dept_id", "day")) %>%
+                          mutate(model = "Simulx IncH"),
+                        res_EpiEstim_ABM_rm10 %>%
+                          left_join(data_ABM_rm_cov %>% rename(Rt_real = Rt), 
+                                    by = c("dept_id", "day")) %>%
+                          mutate(model = "ABM rm IncI"),
+                        res_EpiEstim_ABM_hybrid10 %>%
+                          left_join(data_ABM_hybrid_cov %>% rename(Rt_real = Rt), 
+                                    by = c("dept_id", "day")) %>%
+                          mutate(model = "ABM hybrid IncI"))
+
+ggplot(Rt_comp_df %>% filter(dept_id %in% c(1, 4, 9, 13)),
+       aes(x = day, y = Rt)) + 
+  geom_line(aes(col = "EpiEstim")) +
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = "EpiEstim"), alpha = 0.5, show.legend = FALSE) +
+  geom_line(aes(y = Rt_real, col = "Real Rt")) + 
+  facet_grid(rows = vars(model), cols = vars(dept_id)) + 
+  labs(title = expression("Comparison"~  R[t]~ "estimated by EpiEstim and real underlying" ~ R[t]), 
+       col = "", fill = "", y = expression(R[t])) +
+  theme_bw() +
+  scale_color_brewer(palette = "Set1", 
+                     labels = c(expression("EpiEstim" ~R[t]), expression("Real" ~R[t]))) +
+  scale_fill_brewer(palette = "Set1", 
+                    labels = c(expression("EpiEstim" ~R[t]), expression("Real" ~R[t]))) + 
+  theme(legend.text = element_text(hjust = 0))
+
+
+save(Rt_comp_df, reg_res_df, file = "reg_Rt_example0.8.RData")
 
