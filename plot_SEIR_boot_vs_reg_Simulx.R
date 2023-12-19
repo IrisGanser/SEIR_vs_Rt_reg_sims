@@ -51,7 +51,7 @@ ggplot(comp_df_Simulx, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL
   geom_line(aes(y = true_value), col = "black", linetype = "dashed", linewidth = 0.8) + 
   scale_x_continuous(expand = c(0.01, 0.01)) +
   facet_wrap(~parameter, scales = "free_y", nrow = 2) +
-  labs(#title = "95% CIs, SEIR-type models vs. 2-step regression models", 
+  labs(title = "95% CIs, SEIR-type models vs. 2-step regression models", 
        x = "Simulation data set", y = "Coefficient value", col = "") + 
   scale_color_manual(values = comp_cols[-3]) +
   theme_bw() +
@@ -63,7 +63,7 @@ ggplot(comp_df_Simulx, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL
         legend.position = "bottom", 
         strip.text = element_text(family = "serif", size = 14.5))
 
-ggsave("SEIR_vs_reg_Simulx_wo_title.jpeg", dpi = 400, width = 14, height = 8.5)
+ggsave("SEIR_vs_reg_Simulx.jpeg", dpi = 400, width = 14, height = 8.5)
 
 
 # metrics table
@@ -150,8 +150,9 @@ comp_cols <- c(br_palette[c(1, 5)], "black", br_palette[c(16, 20)])
 ggplot(comp_df_Simulx3, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL, col = model)) + 
   geom_pointrange(position = position_dodge(width = 0.8)) +
   geom_line(aes(y = true_value), col = "black", linetype = "dashed", linewidth = 0.8) + 
+  scale_x_continuous(expand = c(0.01, 0.01)) +
   facet_wrap(~parameter, scales = "free_y", nrow = 2) +
-  labs(title = "SEIR-type models vs. 2-step regression models, Simulx 3", 
+  labs(#title = "95% CIs, SEIR-type models vs. 2-step regression models", 
        x = "Simulation data set", y = "Coefficient value", col = "") + 
   scale_color_manual(values = comp_cols[-3]) +
   theme_bw() +
@@ -159,9 +160,11 @@ ggplot(comp_df_Simulx3, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_U
         axis.title = element_text(family = "serif", size = 15), 
         axis.text.x = element_text(family = "serif", size = 13), 
         axis.text.y = element_text(family = "serif", size = 13), 
-        legend.text = element_text(family = "serif", size = 14.5))
+        legend.text = element_text(family = "serif", size = 14.5), 
+        legend.position = "bottom", 
+        strip.text = element_text(family = "serif", size = 14.5))
 
-ggsave("SEIR_vs_reg_Simulx3.jpeg", dpi = 400, width = 14, height = 8.5)
+ggsave("SEIR_vs_reg_Simulx3_wo_title.jpeg", dpi = 400, width = 14, height = 8.5)
 
 
 # metrics table
@@ -184,7 +187,7 @@ metric_df_Simulx3 <- comp_df_Simulx3 %>%
 metric_df_Simulx3 %>% 
   ungroup() %>%
   select(-parameter) %>%
-  kable(digits = 2, format = "html") %>%
+  kable(digits = 2, format = "latex") %>%
   kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
   pack_rows("NPI 1", 1, 3) %>%
   pack_rows("NPI 2", 4, 6)
@@ -346,3 +349,76 @@ metric_df_Simulx_4and2 %>%
   pack_rows("NPI 1", 1, 3) %>%
   pack_rows("NPI 2", 4, 6) %>%
   column_spec(1, width_min = "3.8cm")
+
+
+
+#### reg metrics BG=0.8 SEIRAHD models ####
+load(paste0(dir, "/reg_res_I_2params_all_Simulx_df3.RData"))
+load(paste0(dir, "/reg_res_H_2params_all_Simulx_df3.RData"))
+load(paste0(dir, "/reg_res_I_2params_all_Simulx_df5.RData"))
+load(paste0(dir, "/reg_res_H_2params_all_Simulx_df5.RData"))
+load(paste0(dir, "/reg_res_I_2params_all_Simulx_df5_m10.RData"))
+load(paste0(dir, "/reg_res_H_2params_all_Simulx_df5_m10.RData"))
+
+
+reg_res_2params_Simulx_0.8 <- reg_res_I_2params_all_Simulx_df3 %>%
+  mutate(model = "cases SEIRAHD model") %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df3 %>% mutate(model = "hospitalizations SEIRAHD model")) %>%
+  bind_rows(reg_res_I_2params_all_Simulx_df5 %>% mutate(model = "cases long SEIRAHD model")) %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df5 %>% mutate(model = "hospitalizations long SEIRAHD model")) %>%
+  bind_rows(reg_res_I_2params_all_Simulx_df5_m10 %>% mutate(model = "cases long m10 SEIRAHD model")) %>%
+  bind_rows(reg_res_H_2params_all_Simulx_df5_m10 %>% mutate(model = "hospitalizations long m10 SEIRAHD model")) %>%
+  reg_summary(true_val_NPI2 = -0.8) %>% 
+  rename(sim_rep = rep, mean_est = value)
+
+
+plot_cols_paired <- c(brewer.pal(3, "Set2"), brewer.pal(3, "Dark2"))
+
+ggplot(reg_res_2params_Simulx_0.8, aes(x = sim_rep, y = mean_est, ymin = CI_LL, ymax = CI_UL, col = model)) + 
+  geom_pointrange(position = position_dodge(width = 0.8)) +
+  geom_line(aes(y = true_value), col = "black", linetype = "dashed", linewidth = 0.8) + 
+  facet_wrap(~parameter, scales = "free_y", nrow = 2) +
+  labs(#title = "SEIR model vs. 2-step regression models", 
+       x = "Simulation data set", y = "Coefficient value", col = "") + 
+  scale_color_manual(values = plot_cols_paired) +
+  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  theme_bw() +
+  theme(plot.title = element_text(family = "serif", size = 20), 
+        axis.title = element_text(family = "serif", size = 15), 
+        axis.text.x = element_text(family = "serif", size = 13), 
+        axis.text.y = element_text(family = "serif", size = 13), 
+        legend.text = element_text(family = "serif", size = 14.5), 
+        legend.position = "bottom", 
+        strip.text = element_text(family = "serif", size = 14.5))
+
+
+ggsave("reg_Simulx3+5_wo_title.jpeg", dpi = 400, width = 14, height = 8.5)
+
+
+metric_df_Simulx_0.8 <- reg_res_2params_Simulx_0.8 %>%
+  dplyr::select(parameter, model, perc_CI_covers, mean_bias, mean_rel_bias) %>%
+  unique() %>%
+  arrange(model) %>%
+  filter(grepl("cases", model)) %>%
+  rename(coverage = perc_CI_covers, bias = mean_bias, relbias = mean_rel_bias) %>%
+  pivot_longer(cols = c(coverage, bias, relbias), 
+               names_to = "metric", 
+               values_to = "value") %>%
+  pivot_wider(names_from = model, values_from = value) %>%
+  mutate(metric = factor(metric, levels = c("coverage", "bias", "relbias"))) %>%
+  arrange (parameter, metric) %>%
+  mutate(metric = case_when(metric == "bias" ~ "absolute bias", 
+                            metric == "coverage" ~ "CI coverage (%)", 
+                            metric == "relbias" ~ "relative bias (%)"))
+
+# print metrics table
+metric_df_Simulx_0.8 %>% 
+  ungroup() %>%
+  dplyr::select(-parameter) %>%
+  kable(digits = 2, format = "latex" #, table.attr = "style='width:40%;'"
+        ) %>%
+  kable_styling(bootstrap_options = "striped") %>%
+  pack_rows("NPI 1", 1, 3) %>%
+  pack_rows("NPI 2", 4, 6) %>%
+  column_spec(1, width_min = "3.8cm")
+
