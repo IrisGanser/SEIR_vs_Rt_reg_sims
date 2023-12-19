@@ -31,7 +31,16 @@ ind_params <- read.table("ind_params.txt", header = TRUE, sep = " ")
 ld1_start <- c(20, 30, 40, 50, 60)
 ld1_strength <- seq(0.5, 2, 0.1)
 
-# EpiEstim
+
+set.seed(123)
+selected_depts <- sample(1:94, size = 16, replace = FALSE)
+
+
+
+# Simulx 2 ----------------------------------------------------------------
+
+
+### EpiEstim ####
 cl <- makeCluster(10)
 registerDoParallel(cl)
 
@@ -43,8 +52,8 @@ for(j in 1:length(sim_res_ld1_start)){
     left_join(ind_params_lowb1, by = "id") %>%
     mutate(Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
            IncI_unscaled = round(IncI*popsize/10^4), 
-           lockdown1 = ifelse(between(time, ld1_start[j], 70), 1, 0), 
-           BG1 = ifelse(time > 70, 1, 0)) %>% 
+           lockdown1 = ifelse(between(time, ld1_start[j], 50 + ld1_start[j]), 1, 0), 
+           BG1 = ifelse(time > 50 + ld1_start[j], 1, 0)) %>% 
     rename(dept_id = id, day = time)
   
   res_EE_ld1_start <- EpiEstim_only_fun(data_for_est = data_x, 
@@ -66,8 +75,8 @@ for(j in 1:length(sim_res_ld1_start)){
     left_join(ind_params, by = "id") %>%
     mutate(Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
            IncI_unscaled = round(IncI*popsize/10^4), 
-           lockdown1 = ifelse(between(time, ld1_start[j], 70), 1, 0), 
-           BG1 = ifelse(time > 70, 1, 0)) %>% 
+           lockdown1 = ifelse(between(time, ld1_start[j], 50 + ld1_start[j]), 1, 0), 
+           BG1 = ifelse(time > 50 + ld1_start[j], 1, 0)) %>% 
     rename(dept_id = id, day = time)
   
   res_EE_ld1_start_high <- EpiEstim_only_fun(data_for_est = data_x, 
@@ -105,59 +114,103 @@ for(j in 1:length(sim_res_ld1_strength)){
 stopCluster(cl)
 
 
-# compare and plot results
-res_EE_ld1_start_df <- do.call("rbind.data.frame", res_EE_ld1_start_list) 
+### compare and plot results ####
+res_EE_ld1_start_df <- do.call("rbind.data.frame", res_EE_ld1_start_list) %>%
+  mutate(dept_id2 = paste("Region", as.character(dept_id)), 
+         dept_id2 = factor(dept_id2, levels = paste("Region", 1:94)))
 
-res_EE_ld1_start_high_df <- do.call("rbind.data.frame", res_EE_ld1_start_high_list) 
+res_EE_ld1_start_high_df <- do.call("rbind.data.frame", res_EE_ld1_start_high_list) %>%
+  mutate(dept_id2 = paste("Region", as.character(dept_id)), 
+         dept_id2 = factor(dept_id2, levels = paste("Region", 1:94)))
 
-res_EE_ld1_strength_df <- do.call("rbind.data.frame", res_EE_ld1_strength_list) 
+res_EE_ld1_strength_df <- do.call("rbind.data.frame", res_EE_ld1_strength_list) %>%
+  mutate(dept_id2 = paste("Region", as.character(dept_id)), 
+         dept_id2 = factor(dept_id2, levels = paste("Region", 1:94)), 
+         ld1_strength_cat = cut(ld1_strength, 4, 
+                                labels = c("very weak", "weak", "moderate", "strong")))
 
 
-ggplot(res_EE_ld1_start_df %>% filter(dept_id %in% c(1:6)),
+ggplot(res_EE_ld1_start_df %>% filter(dept_id %in% selected_depts[c(1:3, 5:7)]),
        aes(x = day, y = Rt, col = as.factor(ld1_start))) + 
   geom_line() +
-  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_start)), alpha = 0.5) +
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_start)), alpha = 0.3, colour = NA) +
   geom_line(aes(y = Rt_SEIRAHD), linetype = "dashed") + 
-  facet_wrap(~dept_id) + 
-  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4)) + 
+  facet_wrap(~dept_id2) + 
+  scale_x_continuous(expand = c(0.05, 0.05), breaks = seq(0, 150, 50)) + 
   labs(title = "Comparison Rt estimated by EpiEstim and real underlying Rt (lower basic transmission)", 
        col = "Lockdown onset day", fill = "Lockdown onset day") +
   theme_bw() +
   scale_color_brewer(palette = "Dark2") +
   scale_fill_brewer(palette = "Dark2") + 
-  theme(legend.position = "bottom")
+  theme(legend.text = element_text(family = "serif", size = 12, hjust = 0), 
+        legend.title = element_text(family = "serif", size = 13),
+        legend.position = "bottom",
+        ggside.panel.scale.x = .3, 
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13), 
+        ggside.axis.text.y = element_text(family = "serif", size = 10))
 
-ggplot(res_EE_ld1_start_high_df %>% filter(dept_id %in% c(1:6)),
+ggplot(res_EE_ld1_start_high_df %>% filter(dept_id %in% selected_depts[c(1:3, 5:7)]),
        aes(x = day, y = Rt, col = as.factor(ld1_start))) + 
   geom_line() +
-  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_start)), alpha = 0.5) +
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_start)), alpha = 0.3, colour = NA) +
   geom_line(aes(y = Rt_SEIRAHD), linetype = "dashed") + 
-  facet_wrap(~dept_id) + 
-  scale_x_continuous(expand = c(0.01, 0.01)) + 
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4)) + 
+  facet_wrap(~dept_id2) + 
+  scale_x_continuous(expand = c(0.05, 0.05), breaks = seq(0, 150, 50)) + 
   labs(title = "Comparison Rt estimated by EpiEstim and real underlying Rt (higher basic transmission)", 
        col = "Lockdown onset day", fill = "Lockdown onset day") +
   theme_bw() +
   scale_color_brewer(palette = "Dark2") +
   scale_fill_brewer(palette = "Dark2") + 
-  theme(legend.position = "bottom")
+  theme(legend.text = element_text(family = "serif", size = 12, hjust = 0),
+        legend.title = element_text(family = "serif", size = 13), 
+        legend.position = "bottom",
+        ggside.panel.scale.x = .3, 
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13), 
+        ggside.axis.text.y = element_text(family = "serif", size = 10))
 
 
 q4 <- qualitative_hcl(16, palette = "Dark 3")
-ggplot(res_EE_ld1_strength_df %>% filter(dept_id == 1),
+ggplot(res_EE_ld1_strength_df %>% filter(dept_id %in% selected_depts[1:3]),
        aes(x = day, y = Rt, col = as.factor(ld1_strength))) + 
   geom_line(aes(y = Rt_SEIRAHD), linetype = "dashed") + 
   geom_line() +
-  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_strength)), alpha = 0.5) +
-  facet_wrap(~ld1_strength) + 
+  geom_ribbon(aes(ymax = CI_UL, ymin = CI_LL, fill = as.factor(ld1_strength)), alpha = 0.3, colour = NA) +
+  geom_xsideline(aes(y = IncI_unscaled)) + 
+  #ggside(scales = "free_y")  + 
+  scale_xsidey_continuous(minor_breaks = NULL, breaks = scales::extended_breaks(n = 4)) + 
+  facet_grid(dept_id2~ld1_strength_cat) + 
   scale_x_continuous(expand = c(0.01, 0.01)) + 
   labs(title = "Comparison Rt estimated by EpiEstim and real underlying Rt", 
        col = "Lockdown strength", fill = "Lockdown strength") +
   theme_bw() +
   scale_color_manual(values = q4) +
   scale_fill_manual(values = q4) + 
-  theme(legend.position = "bottom")
+  theme(legend.text = element_text(family = "serif", size = 12, hjust = 0), 
+        legend.title = element_text(family = "serif", size = 13),
+        legend.position = "bottom",
+        ggside.panel.scale.x = .3, 
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13), 
+        ggside.axis.text.y = element_text(family = "serif", size = 10))
 
-#regressions
+### regressions ####
 cl <- makeCluster(10)
 registerDoParallel(cl)
 
@@ -169,13 +222,13 @@ for(j in 1:length(sim_res_ld1_start)){
     left_join(ind_params_lowb1, by = "id") %>%
     mutate(Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
            IncI_unscaled = round(IncI*popsize/10^4), 
-           lockdown1 = ifelse(between(time, ld1_start[j], 70), 1, 0), 
-           BG1 = ifelse(time > 70, 1, 0)) %>% 
+           lockdown1 = ifelse(between(time, ld1_start[j], 50 + ld1_start[j]), 1, 0), 
+           BG1 = ifelse(time > 50 + ld1_start[j], 1, 0)) %>% 
     rename(dept_id = id, day = time)
   
   res_reg_ld1_start <- EpiEstim_reg_fun(data_for_est = data_x, 
                                         Inc_name = "IncI_unscaled", 
-                                        rep_num = 1, 
+                                        rep_num = 1,  lag_NPIs = TRUE, lag_days = 5,
                                         meansi = 10.1, stdsi = 8.75) %>%
     mutate(ld1_start = ld1_start[j]) 
   
@@ -191,13 +244,13 @@ for(j in 1:length(sim_res_ld1_start)){
     left_join(ind_params, by = "id") %>%
     mutate(Rt_SEIRAHD = calc_Rt(b1 = transmission, S = S, Dq = 5, risk_hosp = 0.1, VE_I = 0, VE_H = 0), 
            IncI_unscaled = round(IncI*popsize/10^4), 
-           lockdown1 = ifelse(between(time, ld1_start[j], 70), 1, 0), 
-           BG1 = ifelse(time > 70, 1, 0)) %>% 
+           lockdown1 = ifelse(between(time, ld1_start[j], 50 + ld1_start[j]), 1, 0), 
+           BG1 = ifelse(time > 50 + ld1_start[j], 1, 0)) %>% 
     rename(dept_id = id, day = time)
   
   res_reg_ld1_start_high <- EpiEstim_reg_fun(data_for_est = data_x, 
                                              Inc_name = "IncI_unscaled", 
-                                             rep_num = 1, 
+                                             rep_num = 1, lag_NPIs = TRUE, lag_days = 5,
                                              meansi = 10.1, stdsi = 8.75) %>%
     mutate(ld1_start = ld1_start[j]) 
   
@@ -220,7 +273,7 @@ for(j in 1:length(sim_res_ld1_strength)){
   
   res_reg_ld1_strength <- EpiEstim_reg_fun(data_for_est = data_x, 
                                            Inc_name = "IncI_unscaled", 
-                                           rep_num = 1, 
+                                           rep_num = 1, lag_NPIs = TRUE, lag_days = 5,
                                            meansi = 10.1, stdsi = 8.75) %>%
     mutate(ld1_strength = ld1_strength[j]) 
   
@@ -231,15 +284,18 @@ stopCluster(cl)
 
 
 res_reg_ld1_start_df <- do.call("rbind.data.frame", res_reg_ld1_start_list) %>%
-  mutate(true_value = ifelse(parameter == "Lockdown 1", -1.45, -0.5), 
+  mutate(parameter = ifelse(parameter == "Lockdown 1", "NPI 1", "NPI 2"), 
+         true_value = ifelse(parameter == "NPI 1", -1.45, -0.5), 
          bias = abs(true_value - value), 
          rel_bias = abs(true_value - value)/abs(true_value)*100)
 res_reg_ld1_start_high_df <- do.call("rbind.data.frame", res_reg_ld1_start_high_list) %>%
-  mutate(true_value = ifelse(parameter == "Lockdown 1", -1.45, -0.5), 
+  mutate(parameter = ifelse(parameter == "Lockdown 1", "NPI 1", "NPI 2"), 
+         true_value = ifelse(parameter == "NPI 1", -1.45, -0.5), 
          bias = abs(true_value - value), 
          rel_bias = abs(true_value - value)/abs(true_value)*100)
 res_reg_ld1_strength_df <- do.call("rbind.data.frame", res_reg_ld1_strength_list) %>%
-  mutate(true_value = ifelse(parameter == "Lockdown 1", 0-ld1_strength, -0.5), 
+  mutate(parameter = ifelse(parameter == "Lockdown 1", "NPI 1", "NPI 2"),  
+         true_value = ifelse(parameter == "NPI 1", 0-ld1_strength, -0.5), 
          bias = abs(true_value - value), 
          rel_bias = abs(true_value - value)/abs(true_value)*100)
 
@@ -254,7 +310,15 @@ ggplot(res_reg_ld1_start_df, aes(ymin = CI_LL, ymax = CI_UL, x = ld1_start,
   labs(title = "Comparison 2 step regression: NPI start day (low transmission)", col = "Lockdown1 start day",
        x = "Lockdown1 start day", y = "coefficient value") +
   theme_bw() +
-  scale_color_brewer(palette = "Dark2")
+  scale_color_brewer(palette = "Dark2") + 
+  theme(legend.text = element_text(family = "serif", size = 12), 
+        legend.title = element_text(family = "serif", size = 13),
+        #legend.position = "bottom",
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13))
 
 ggplot(res_reg_ld1_start_high_df, aes(ymin = CI_LL, ymax = CI_UL, x = ld1_start, 
                                       y = value, col = as.factor(ld1_start))) + 
@@ -265,7 +329,15 @@ ggplot(res_reg_ld1_start_high_df, aes(ymin = CI_LL, ymax = CI_UL, x = ld1_start,
   labs(title = "Comparison 2 step regression: NPI start day (high transmission)", col = "Lockdown1 start day",
        x = "Lockdown1 start day", y = "coefficient value") +
   theme_bw() +
-  scale_color_brewer(palette = "Dark2")
+  scale_color_brewer(palette = "Dark2") + 
+  theme(legend.text = element_text(family = "serif", size = 12), 
+        legend.title = element_text(family = "serif", size = 13),
+        #legend.position = "bottom",
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13))
 
 
 ggplot(res_reg_ld1_strength_df, aes(ymin = CI_LL, ymax = CI_UL, x = ld1_strength, 
@@ -275,15 +347,64 @@ ggplot(res_reg_ld1_strength_df, aes(ymin = CI_LL, ymax = CI_UL, x = ld1_strength
   facet_wrap(~parameter, ncol = 1, scale = "free_y") +
   geom_segment(aes(y = true_value, yend = true_value, x = ld1_strength-0.05, xend = ld1_strength+0.05), 
                linetype = "dashed", col = "black", linewidth = 0.8) + 
-  labs(title = "Comparison 2 step regression: NPI strength", col = "Lockdown1 strength",
-       x = "Lockdown1 strength", y = "coefficient value") +
+  labs(title = "Comparison 2 step regression: NPI strength", col = "Lockdown1 coefficient",
+       x = "Lockdown1 beta coefficient", y = "Estimated beta coefficient") +
   theme_bw() +
-  scale_color_manual(values = q4)
+  scale_color_manual(values = q4) + 
+  theme(legend.text = element_text(family = "serif", size = 12), 
+        legend.title = element_text(family = "serif", size = 13),
+        #legend.position = "bottom",
+        plot.title = element_text(family = "serif", size = 16), 
+        axis.title = element_text(family = "serif", size = 13), 
+        axis.text.x = element_text(family = "serif", size = 12), 
+        axis.text.y = element_text(family = "serif", size = 12),
+        strip.text = element_text(family = "serif", size = 13))
+
 
 
 # tables
+metric_table_reg_ld1_start <- res_reg_ld1_start_df %>%
+  select(parameter, ld1_start, bias, rel_bias) %>%
+  unique() %>%
+  pivot_longer(cols = c(bias, rel_bias), 
+               names_to = "metric", 
+               values_to = "value") %>%
+  pivot_wider(names_from = ld1_start, values_from = value, names_prefix = "day ") %>%
+  mutate(metric = factor(metric, levels = c("bias", "rel_bias"))) %>%
+  arrange (parameter, metric) %>%
+  mutate(metric = case_when(metric == "bias" ~ "absolute bias", 
+                            metric == "rel_bias" ~ "relative bias (%)"))
+
+metric_table_reg_ld1_start %>% 
+  select(-parameter) %>%
+  kable(digits = 2, format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+  pack_rows("NPI 1", 1, 2) %>%
+  pack_rows("NPI 2", 3, 4)
+
+
+metric_table_reg_ld1_start_high <- res_reg_ld1_start_high_df %>%
+  select(parameter, ld1_start, bias, rel_bias) %>%
+  unique() %>%
+  pivot_longer(cols = c(bias, rel_bias), 
+               names_to = "metric", 
+               values_to = "value") %>%
+  pivot_wider(names_from = ld1_start, values_from = value, names_prefix = "day ") %>%
+  mutate(metric = factor(metric, levels = c("bias", "rel_bias"))) %>%
+  arrange (parameter, metric) %>%
+  mutate(metric = case_when(metric == "bias" ~ "absolute bias", 
+                            metric == "rel_bias" ~ "relative bias (%)"))
+
+metric_table_reg_ld1_start_high %>% 
+  select(-parameter) %>%
+  kable(digits = 2, format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+  pack_rows("NPI 1", 1, 2) %>%
+  pack_rows("NPI 2", 3, 4)
+
+
+
 metric_table_reg_ld1_strength <- res_reg_ld1_strength_df %>%
-  mutate(parameter = ifelse(parameter == "Lockdown 1", "NPI 1", "NPI 2")) %>%
   select(parameter, ld1_strength, bias, rel_bias) %>%
   unique() %>%
   pivot_longer(cols = c(bias, rel_bias), 
